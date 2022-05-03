@@ -53,10 +53,19 @@ impl MarketFactory {
         }
     }
 
-    pub fn create_market(&mut self, market_options: Vec<String>) -> String {
+    pub fn create_market(&mut self, description: String, market_options: Vec<String>) -> String {
         let market_id = self.get_random_market_id();
 
-        self.markets.insert(&market_id, &market_options);
+        self.markets.insert(
+            &market_id,
+            &Market {
+                description,
+                market_options: Vec::new(),
+            },
+        );
+
+        // @TODO create ConditionalEscrow using the Factory: https://github.com/aufacicenta/near.holdings/blob/master/rust-escrow/src/lib.rs#L59
+
         self.process_market_options(&market_id, market_options);
 
         return market_id;
@@ -77,11 +86,15 @@ impl MarketFactory {
             "add_proposal".to_string(),
             json!({
                 "proposal": {
+                    // @TODO interpolate the proposal description as "[market_id]: [market_option from user input]"
                     "description": market_option,
                     "kind": {
                         "FunctionCall": {
+                            // @TODO a ConditionalEscrow must exist before adding the proposal
                             "receiver_id": "CONDITIONAL_ESCROW_ID",
                             "actions": [{
+                                // @TODO delegate_funds should be called only by the Sputnik2 DAO contract
+                                // @TODO delegate_funds should be called only after the proposal expires or it's resoluted
                                 "method_name": "delegate_funds",
                                 "args": {},
                                 "deposit": 0, // @TODO
@@ -99,7 +112,7 @@ impl MarketFactory {
 
         let callback = Promise::new(env::current_account_id()).function_call(
             "on_create_proposal_callback".to_string(),
-            json!({}).to_string().into_bytes(),
+            json!({ "market_id": market_id }).to_string().into_bytes(),
             0,
             GAS_FOR_CREATE_DAO_PROPOSAL_CALLBACK,
         );
@@ -120,11 +133,16 @@ impl MarketFactory {
     }
 
     #[private]
-    pub fn on_create_proposal_callback(&mut self) -> bool {
+    pub fn on_create_proposal_callback(&mut self, market_id: String) -> bool {
         match env::promise_result(0) {
-            PromiseResult::Successful(result) => {
-                let res: bool = near_sdk::serde_json::from_slice(&result).unwrap();
-                return res;
+            PromiseResult::Successful(proposal_id) => {
+                // @TODO get the market by id, its market_options Vec and push the proposal_id
+                self.markets
+                    .get(&market_id)
+                    .market_options
+                    .push(proposal_id);
+
+                return true;
             }
             _ => env::panic_str("ERR_CREATE_DAO_PROPOSAL_UNSUCCESSFUL"),
         }
