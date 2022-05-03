@@ -12,13 +12,24 @@ const GAS_FOR_CREATE_DAO_PROPOSAL_CALLBACK: Gas = Gas(2_000_000_000_000);
 
 #[derive(BorshDeserialize, BorshSerialize)]
 struct CreateMarketArgs {
-    market_options: Vector<String>,
+    market_options: Vec<String>,
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
+struct MarketOption {
+    proposal_id: u8,
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
+struct Market {
+    description: String,
+    market_options: Vec<MarketOption>,
 }
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct MarketFactory {
-    markets: LookupMap<String, Vec<String>>,
+    markets: LookupMap<String, Market>,
     dao_account_id: AccountId,
 }
 
@@ -60,9 +71,28 @@ impl MarketFactory {
     }
 
     fn create_proposal(&self, market_id: &String, market_option: String) -> bool {
+        // @TODO this add_proposal cross-contract promise should return an u64 ID of the new proposal
+        // @TODO store the proposal_id in Market.market_option.proposal_id
         let dao_proposal_promise = Promise::new(self.dao_account_id.clone()).function_call(
-            "create_proposal".to_string(),
-            json!({ "title": market_option }).to_string().into_bytes(),
+            "add_proposal".to_string(),
+            json!({
+                "proposal": {
+                    "description": market_option,
+                    "kind": {
+                        "FunctionCall": {
+                            "receiver_id": "CONDITIONAL_ESCROW_ID",
+                            "actions": [{
+                                "method_name": "delegate_funds",
+                                "args": {},
+                                "deposit": 0, // @TODO
+                                "gas": 0, // @TODO
+                            }]
+                        }
+                    }
+                }
+            })
+            .to_string()
+            .into_bytes(),
             0,
             GAS_FOR_CREATE_DAO_PROPOSAL,
         );
