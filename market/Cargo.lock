@@ -462,9 +462,7 @@ checksum = "efaa7b300f3b5fe8eb6bf21ce3895e1751d9665086af2d64b42f19701015ff4f"
 name = "market"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "near-sdk",
- "rand 0.8.5",
 ]
 
 [[package]]
