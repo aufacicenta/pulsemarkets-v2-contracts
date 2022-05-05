@@ -1,6 +1,6 @@
 use near_sdk::{env, near_bindgen, AccountId, Balance};
 
-use crate::structs::*;
+use crate::storage::*;
 
 #[near_bindgen]
 impl ConditionalEscrow {
@@ -26,10 +26,6 @@ impl ConditionalEscrow {
         self.total_funds
     }
 
-    pub fn get_metadata_url(&self) -> String {
-        self.metadata_url.clone()
-    }
-
     pub fn get_expiration_date(&self) -> u64 {
         self.expires_at
     }
@@ -40,18 +36,6 @@ impl ConditionalEscrow {
 
     pub fn get_unpaid_funding_amount(&self) -> u128 {
         self.unpaid_funding_amount
-    }
-
-    pub fn get_dao_factory_account_id(&self) -> AccountId {
-        self.dao_factory_account_id.clone()
-    }
-
-    pub fn get_ft_factory_account_id(&self) -> AccountId {
-        self.ft_factory_account_id.clone()
-    }
-
-    pub fn get_dao_name(&self) -> String {
-        self.dao_name.clone()
     }
 
     pub fn is_deposit_allowed(&self) -> bool {

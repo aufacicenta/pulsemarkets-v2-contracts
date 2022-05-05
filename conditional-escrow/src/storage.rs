@@ -11,9 +11,4 @@ pub struct ConditionalEscrow {
     pub total_funds: Balance,
     pub funding_amount_limit: u128,
     pub unpaid_funding_amount: u128,
-    pub dao_factory_account_id: AccountId,
-    pub ft_factory_account_id: AccountId,
-    pub metadata_url: String,
-    pub dao_name: String,
-    pub is_dao_created: bool,
 }

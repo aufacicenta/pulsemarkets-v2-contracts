@@ -1,11 +1,10 @@
 use near_sdk::collections::UnorderedMap;
 use near_sdk::json_types::U128;
-use near_sdk::serde_json::json;
+use near_sdk::Promise;
 use near_sdk::{env, log, near_bindgen};
-use near_sdk::{AccountId, Promise};
 
 use crate::consts::*;
-use crate::structs::*;
+use crate::storage::*;
 
 impl Default for ConditionalEscrow {
     fn default() -> Self {
@@ -16,13 +15,7 @@ impl Default for ConditionalEscrow {
 #[near_bindgen]
 impl ConditionalEscrow {
     #[init]
-    pub fn new(
-        expires_at: u64,
-        funding_amount_limit: U128,
-        dao_factory_account_id: AccountId,
-        ft_factory_account_id: AccountId,
-        metadata_url: String,
-    ) -> Self {
+    pub fn new(expires_at: u64, funding_amount_limit: U128) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
         }
@@ -37,11 +30,6 @@ impl ConditionalEscrow {
             funding_amount_limit: funding_amount_limit.0,
             unpaid_funding_amount: funding_amount_limit.0,
             expires_at,
-            dao_factory_account_id,
-            ft_factory_account_id,
-            metadata_url,
-            dao_name: "".to_string(),
-            is_dao_created: false,
         }
     }
 
@@ -80,7 +68,6 @@ impl ConditionalEscrow {
             self.total_funds,
             self.unpaid_funding_amount
         );
-        // @TODO emit deposit event
     }
 
     #[payable]
@@ -105,11 +92,10 @@ impl ConditionalEscrow {
             self.total_funds,
             self.unpaid_funding_amount
         );
-        // @TODO emit withdraw event
     }
 
     #[payable]
-    pub fn delegate_funds(&mut self, dao_name: String) -> Promise {
+    pub fn delegate_funds(&mut self) {
         if self.is_deposit_allowed() || self.is_withdrawal_allowed() {
             env::panic_str("ERR_DELEGATE_NOT_ALLOWED");
         }
@@ -119,34 +105,6 @@ impl ConditionalEscrow {
         }
 
         // @TODO charge a fee here (1.5% initially?) when a property is sold by our contract
-
-        let dao_promise = Promise::new(self.dao_factory_account_id.clone()).function_call(
-            "create_dao".to_string(),
-            json!({"dao_name": dao_name.clone(), "deposits": self.get_deposit_accounts() })
-                .to_string()
-                .into_bytes(),
-            self.total_funds - FT_ATTACHED_DEPOSIT,
-            GAS_FOR_CREATE_DAO,
-        );
-
-        let ft_promise = Promise::new(self.ft_factory_account_id.clone()).function_call(
-            "create_ft".to_string(),
-            json!({"name": dao_name.clone()}).to_string().into_bytes(),
-            FT_ATTACHED_DEPOSIT,
-            GAS_FOR_CREATE_FT,
-        );
-
-        let callback = Promise::new(env::current_account_id()).function_call(
-            "on_delegate_callback".to_string(),
-            json!({"dao_name": dao_name.clone()})
-                .to_string()
-                .into_bytes(),
-            0,
-            GAS_FOR_CALLBACK,
-        );
-
-        dao_promise.and(ft_promise).then(callback)
-
-        // @TODO emit delegate_funds event
+        // @TODO proportionally distribute the staked funds to the winners
     }
 }

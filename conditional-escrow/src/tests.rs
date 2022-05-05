@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::structs::ConditionalEscrow;
+    use crate::storage::ConditionalEscrow;
     use chrono::Utc;
     use near_sdk::json_types::U128;
     use near_sdk::test_utils::test_env::{alice, bob, carol};
@@ -22,13 +22,7 @@ mod tests {
     }
 
     fn setup_contract(expires_at: u64, funding_amount_limit: u128) -> ConditionalEscrow {
-        let contract = ConditionalEscrow::new(
-            expires_at,
-            U128(funding_amount_limit),
-            accounts(3),
-            accounts(4),
-            "metadata_url.json".to_string(),
-        );
+        let contract = ConditionalEscrow::new(expires_at, U128(funding_amount_limit));
 
         contract
     }
@@ -56,9 +50,6 @@ mod tests {
         ConditionalEscrow::new(
             expires_at,
             U128(1_000_000_000_000_000_000_000_000), // 1 NEAR
-            accounts(3),
-            accounts(4),
-            "metadata_url.json".to_string(),
         );
     }
 
@@ -150,93 +141,6 @@ mod tests {
         assert_eq!(
             vec!["bob.near", "carol.near"],
             contract.get_deposit_accounts(),
-        );
-    }
-
-    #[test]
-    fn test_get_dao_factory_account_id() {
-        let expires_at = add_expires_at_nanos(100);
-
-        let contract = setup_contract(expires_at, MIN_FUNDING_AMOUNT);
-
-        assert_eq!(
-            accounts(3),
-            contract.get_dao_factory_account_id(),
-            "Recipient account id should be 'danny.near'"
-        );
-    }
-
-    #[test]
-    fn test_get_ft_factory_account_id() {
-        let expires_at = add_expires_at_nanos(100);
-
-        let contract = setup_contract(expires_at, MIN_FUNDING_AMOUNT);
-
-        assert_eq!(
-            accounts(4),
-            contract.get_ft_factory_account_id(),
-            "Recipient account id should be 'eugene.near'"
-        );
-    }
-
-    #[test]
-    fn test_get_dao_name() {
-        let mut context = setup_context();
-
-        let expires_at = add_expires_at_nanos(100);
-
-        let mut contract = setup_contract(expires_at, MIN_FUNDING_AMOUNT);
-
-        testing_env!(context
-            .signer_account_id(bob())
-            .attached_deposit(MIN_FUNDING_AMOUNT / 2)
-            .build());
-
-        contract.deposit();
-
-        testing_env!(context
-            .signer_account_id(carol())
-            .attached_deposit(MIN_FUNDING_AMOUNT / 2)
-            .build());
-
-        contract.deposit();
-
-        testing_env!(context
-            .block_timestamp((expires_at + 200).try_into().unwrap())
-            .build());
-
-        contract.delegate_funds("dao1".to_string());
-
-        testing_env!(
-            context.build(),
-            near_sdk::VMConfig::test(),
-            near_sdk::RuntimeFeesConfig::test(),
-            Default::default(),
-            vec![
-                PromiseResult::Successful("true".to_string().into_bytes()),
-                PromiseResult::Successful("true".to_string().into_bytes())
-            ],
-        );
-
-        assert_eq!(
-            contract.on_delegate_callback("dao1".to_string()),
-            true,
-            "delegate_funds should run successfully"
-        );
-
-        assert_eq!("dao1", contract.get_dao_name(), "Should equal DAO Name");
-    }
-
-    #[test]
-    fn test_get_metadata_url() {
-        let expires_at = add_expires_at_nanos(100);
-
-        let contract = setup_contract(expires_at, MIN_FUNDING_AMOUNT);
-
-        assert_eq!(
-            "metadata_url.json",
-            contract.get_metadata_url(),
-            "Contract was not initilialized with metadata_url param"
         );
     }
 
@@ -471,7 +375,7 @@ mod tests {
             "Withdrawal should not be allowed"
         );
 
-        contract.delegate_funds("dao1".to_string());
+        contract.delegate_funds();
     }
 
     #[test]
@@ -506,7 +410,7 @@ mod tests {
             "Withdrawal should be allowed"
         );
 
-        contract.delegate_funds("dao1".to_string());
+        contract.delegate_funds();
     }
 
     #[test]
@@ -548,7 +452,7 @@ mod tests {
             "Withdrawal should not be allowed"
         );
 
-        contract.delegate_funds("dao1".to_string());
+        contract.delegate_funds();
 
         testing_env!(
             context.build(),
@@ -562,14 +466,14 @@ mod tests {
         );
 
         assert_eq!(
-            contract.on_delegate_callback("dao1".to_string()),
+            contract.on_delegate_callback(),
             true,
             "delegate_funds should run successfully"
         );
 
         assert_eq!(0, contract.get_total_funds(), "Total funds should be 0");
 
-        contract.delegate_funds("dao1".to_string());
+        contract.delegate_funds();
     }
 
     #[test]
@@ -611,7 +515,7 @@ mod tests {
             "Withdrawal should not be allowed"
         );
 
-        contract.delegate_funds("dao1".to_string());
+        contract.delegate_funds();
 
         testing_env!(
             context.build(),
@@ -622,7 +526,7 @@ mod tests {
         );
 
         assert_eq!(
-            contract.on_delegate_callback("dao1".to_string()),
+            contract.on_delegate_callback(),
             false,
             "delegate_funds should fail"
         );
@@ -672,7 +576,7 @@ mod tests {
             "Withdrawal should not be allowed"
         );
 
-        contract.delegate_funds("dao1".to_string());
+        contract.delegate_funds();
 
         testing_env!(
             context.build(),
@@ -686,7 +590,7 @@ mod tests {
         );
 
         assert_eq!(
-            contract.on_delegate_callback("dao1".to_string()),
+            contract.on_delegate_callback(),
             true,
             "delegate_funds should run successfully"
         );
