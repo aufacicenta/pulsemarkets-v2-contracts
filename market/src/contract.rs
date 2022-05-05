@@ -29,19 +29,28 @@ impl Market {
         }
     }
 
-    pub fn get_data_data(&self) -> MarketData{
+    pub fn get_data_data(&self) -> MarketData {
         self.market.clone()
     }
 
-    pub fn is_published(&self) -> bool{
+    pub fn get_proposals(&self) -> Vec<u64> {
+        self.proposals.clone()
+    }
+
+    pub fn is_published(&self) -> bool {
         self.published
     }
 
-    pub fn is_resolved(&self) -> bool{
+    pub fn is_resolved(&self) -> bool {
         self.resolved
     }
 
+    #[payable]
     pub fn publish_market(&mut self) -> Promise {
+        if self.published {
+            env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");
+        }
+
         let mut promises: Promise = Promise::new(self.dao_account_id.clone());
 
         for market_option in &self.market.options {
@@ -59,7 +68,7 @@ impl Market {
                                     // @TODO delegate_funds should be called only by the Sputnik2 DAO contract
                                     // @TODO delegate_funds should be called only after the proposal expires or it's resoluted
                                     "method_name": "delegate_funds",
-                                    "args": {},
+                                    "args": "ewogICJ3aW5uZXIiOiAxCn0=",
                                     "deposit": "0", // @TODO
                                     "gas": "150000000000000", // @TODO
                                 }]
@@ -67,18 +76,11 @@ impl Market {
                         }
                     }
                 }).to_string().into_bytes(),
-                0,
-                GAS_FOR_CREATE_DAO_PROPOSAL,
+                BALANCE_PROPOSAL_BOND,
+                GAS_CREATE_DAO_PROPOSAL,
             );
             
             promises = promises.and(new_proposal);
-            
-            /*if res == false {
-                promises = promises.and(new_proposal);
-            }else{
-                promises = new_proposal;
-                res = true;
-            }*/
         }
 
         let callback = Promise::new(env::current_account_id()).function_call(
@@ -87,7 +89,7 @@ impl Market {
                 .to_string()
                 .into_bytes(),
             0,
-            GAS_FOR_CREATE_DAO_PROPOSAL_CALLBACK,
+            GAS_CREATE_DAO_PROPOSAL_CALLBACK,
         );
 
         promises.then(callback)
