@@ -1,4 +1,4 @@
 use near_sdk::Gas;
 
-pub const GAS_FOR_CREATE_DAO_PROPOSAL: Gas = Gas(90_000_000_000_000);
+pub const GAS_FOR_CREATE_DAO_PROPOSAL: Gas = Gas(10_000_000_000_000);
 pub const GAS_FOR_CREATE_DAO_PROPOSAL_CALLBACK: Gas = Gas(2_000_000_000_000);

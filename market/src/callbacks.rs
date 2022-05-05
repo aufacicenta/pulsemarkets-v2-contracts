@@ -7,9 +7,9 @@ impl Market {
     #[private]
     pub fn on_create_proposal_callback(&mut self) -> bool {
         match env::promise_result(0) {
-            PromiseResult::Successful(res) => {
-                let proposal_id: u64 = near_sdk::serde_json::from_slice(&res).unwrap();
-                self.market_options.push(proposal_id);
+            PromiseResult::Successful(_res) => {
+                //let proposal_id: u64 = near_sdk::serde_json::from_slice(&res).unwrap();
+                //self.market_options.push(proposal_id);
 
                 return true;
             }
