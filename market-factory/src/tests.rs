@@ -4,7 +4,7 @@ mod tests {
     use chrono::Utc;
     use near_sdk::test_utils::test_env::alice;
     use near_sdk::test_utils::VMContextBuilder;
-    use near_sdk::testing_env;
+    use near_sdk::{testing_env, AccountId};
 
     fn setup_context() -> VMContextBuilder {
         let mut context = VMContextBuilder::new();
@@ -18,7 +18,8 @@ mod tests {
     }
 
     fn setup_contract() -> MarketFactory {
-        let contract = MarketFactory::new();
+        let contract =
+            MarketFactory::new(AccountId::new_unchecked("escrowfactory.near".to_string()));
         contract
     }
 

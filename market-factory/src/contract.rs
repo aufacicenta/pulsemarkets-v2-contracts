@@ -15,13 +15,14 @@ impl Default for MarketFactory {
 #[near_bindgen]
 impl MarketFactory {
     #[init]
-    pub fn new() -> Self {
+    pub fn new(escrow_factory_account_id: AccountId) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
         }
 
         Self {
             markets: Vec::new(),
+            escrow_factory_account_id,
         }
     }
 
@@ -36,6 +37,16 @@ impl MarketFactory {
         let market_account_id: AccountId = format!("{}.{}", name, env::current_account_id())
             .parse()
             .unwrap();
+
+        let create_escrow_promise = Promise::new(self.escrow_factory_account_id.clone())
+            .function_call(
+                "create_conditional_escrow".to_string(),
+                json!({ "name": "name".to_string(), "args": {} })
+                    .to_string()
+                    .into_bytes(),
+                0,
+                GAS_FOR_CREATE_ESCROW,
+            );
 
         let create_market_promise = Promise::new(market_account_id.clone())
             .create_account()
@@ -67,7 +78,8 @@ impl MarketFactory {
             GAS_FOR_CREATE_MARKET_CALLBACK,
         );
 
-        create_market_promise
+        create_escrow_promise
+            .and(create_market_promise)
             .and(process_market_options_promise)
             .then(create_market_callback)
     }
