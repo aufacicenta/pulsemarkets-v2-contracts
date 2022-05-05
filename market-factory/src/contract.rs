@@ -15,7 +15,7 @@ impl Default for MarketFactory {
 #[near_bindgen]
 impl MarketFactory {
     #[init]
-    pub fn new(escrow_factory_account_id: AccountId) -> Self {
+    pub fn new(escrow_factory_account_id: AccountId, dao_account_id: AccountId) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
         }
@@ -23,16 +23,12 @@ impl MarketFactory {
         Self {
             markets: Vec::new(),
             escrow_factory_account_id,
+            dao_account_id,
         }
     }
 
     #[payable]
-    pub fn create_market(
-        &mut self,
-        description: String,
-        dao_account_id: AccountId,
-        market_options: Vec<String>,
-    ) -> Promise {
+    pub fn create_market(&mut self, description: String, market_options: Vec<String>) -> Promise {
         let name = format!("market_{}", self.markets.len() + 1);
         let market_account_id: AccountId = format!("{}.{}", name, env::current_account_id())
             .parse()
@@ -55,7 +51,7 @@ impl MarketFactory {
             .deploy_contract(MARKET_CODE.to_vec())
             .function_call(
                 "new".to_string(),
-                json!({ "description": description, "dao_account_id": dao_account_id })
+                json!({ "description": description, "dao_account_id": self.dao_account_id })
                     .to_string()
                     .into_bytes(),
                 0,

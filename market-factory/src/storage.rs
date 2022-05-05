@@ -6,4 +6,5 @@ use near_sdk::{near_bindgen, AccountId};
 pub struct MarketFactory {
     pub markets: Vec<AccountId>,
     pub escrow_factory_account_id: AccountId,
+    pub dao_account_id: AccountId,
 }
