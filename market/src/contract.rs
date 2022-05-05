@@ -1,6 +1,7 @@
 use near_sdk::serde_json::json;
 use near_sdk::{env, log, near_bindgen};
-use near_sdk::{AccountId, Promise, PromiseOrValue};
+use near_sdk::{AccountId, Promise};
+use near_sdk::json_types::{Base64VecU8};
 use std::default::Default;
 
 use crate::consts::*;
@@ -51,26 +52,30 @@ impl Market {
             env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");
         }
 
+        //@TODO Validate if the Market is expired
+
+        //@TODO Research for an alternative to not create an empty Promise
         let mut promises: Promise = Promise::new(self.dao_account_id.clone());
+        let mut count = 0;
 
         for market_option in &self.market.options {
+            let args = Base64VecU8(json!({"response": count}).to_string().into_bytes());
             let new_proposal = Promise::new(self.dao_account_id.clone()).function_call(
                 "add_proposal".to_string(),
                 json!({
                     "proposal": {
-                        // @TODO interpolate the proposal description as "[market_id]: [market_option from user input]"
-                        "description": "hola$$$$https://www.google.com.gt/$$$$ProposeCustomFunctionCall",
+                        "description": format!("{}:\n{}\nR: {}$$$$$$$$ProposeCustomFunctionCall",
+                            env::current_account_id().to_string(),
+                            self.market.description,
+                            market_option),
                         "kind": {
                             "FunctionCall": {
-                                // @TODO a ConditionalEscrow must exist before adding the proposal
-                                "receiver_id": "pulse.testnet",
+                                "receiver_id": env::current_account_id().to_string(),
                                 "actions": [{
-                                    // @TODO delegate_funds should be called only by the Sputnik2 DAO contract
-                                    // @TODO delegate_funds should be called only after the proposal expires or it's resoluted
-                                    "method_name": "delegate_funds",
-                                    "args": "ewogICJ3aW5uZXIiOiAxCn0=",
+                                    "args": args,
                                     "deposit": "0", // @TODO
                                     "gas": "150000000000000", // @TODO
+                                    "method_name": "resolve",
                                 }]
                             }
                         }
@@ -81,6 +86,7 @@ impl Market {
             );
             
             promises = promises.and(new_proposal);
+            count = count + 1;
         }
 
         let callback = Promise::new(env::current_account_id()).function_call(
@@ -93,5 +99,12 @@ impl Market {
         );
 
         promises.then(callback)
+    }
+
+    pub fn resolve(&mut self, response: u64) {
+        //@TODO Resolve Marter. Delegate Funds
+        log!("response {}",
+            response
+        );
     }
 }
