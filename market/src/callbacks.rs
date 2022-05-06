@@ -17,10 +17,11 @@ impl Market {
                 PromiseResult::Successful(res) => {
                     let proposal_id: u64 = near_sdk::serde_json::from_slice(&res).unwrap();
                     self.proposals.push(proposal_id);
-                    self.published = true;
                 }
                 _ => env::panic_str("ERR_CREATE_PROPOSALS_UNSUCCESSFUL"),
             }
         }
+
+        self.published = true;
     }
 }
