@@ -26,11 +26,12 @@ impl Market {
             dao_account_id,
             resolved: false,
             published: false,
+            closed: false,
             proposals: Vec::new(),
         }
     }
 
-    pub fn get_data_data(&self) -> MarketData {
+    pub fn get_market_data(&self) -> MarketData {
         self.market.clone()
     }
 
@@ -46,13 +47,27 @@ impl Market {
         self.resolved
     }
 
+    pub fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    pub fn is_market_expired(&self) -> bool {
+        self.market.expiration_date < env::block_timestamp().try_into().unwrap()
+    }
+
+    pub fn is_resolution_window_expired(&self) -> bool {
+        self.market.expiration_date + self.market.resolution_window < env::block_timestamp().try_into().unwrap()
+    }
+
     #[payable]
     pub fn publish_market(&mut self) -> Promise {
         if self.published {
             env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");
         }
 
-        //@TODO Validate if the Market is expired
+        if self.is_market_expired() {
+            env::panic_str("ERR_MARKET_EXPIRED");
+        }
 
         //@TODO Research for an alternative to not create an empty Promise
         let mut promises: Promise = Promise::new(self.dao_account_id.clone());
@@ -101,10 +116,54 @@ impl Market {
         promises.then(callback)
     }
 
+    #[payable]
+    pub fn bet(&mut self) {
+        if !self.published {
+            env::panic_str("ERR_MARKET_IS_NOT_PUBLISHED");
+        }
+
+        if self.is_market_expired() {
+            env::panic_str("ERR_MARKET_EXPIRED");
+        }
+
+        //@TODO A user makes a bet. Deposit funds
+    }
+
     pub fn resolve(&mut self, response: u64) {
-        //@TODO Resolve Marter. Delegate Funds
         log!("response {}",
             response
         );
+
+        if self.resolved {
+            env::panic_str("ERR_MAKERT_ALREADY_RESOLVED");
+        }
+
+        if env::signer_account_id() != self.dao_account_id {
+            env::panic_str("ERR_DAO_ACCOUNT");
+        }
+
+        if response >= self.market.options.len() as u64 {
+            env::panic_str("ERR_RESPONSE_INDEX");
+        }
+
+        if self.is_resolution_window_expired() {
+            env::panic_str("ERR_RESOLUTION_WINDOW_EXPIRED");
+        }
+
+        //@TODO Resolve Marter. Delegate Funds
+        self.resolved = true;
+    }
+
+    pub fn close(&mut self) {
+        if self.closed {
+            env::panic_str("ERR_MAKERT_ALREADY_CLOSED");
+        }
+
+        if !self.is_resolution_window_expired() {
+            env::panic_str("ERR_RESOLUTION_WINDOW_SHOULD_BE_EXPIRED");
+        }
+
+        //@TODO Close market when no solution is found. Return funds
+        self.closed = true;
     }
 }

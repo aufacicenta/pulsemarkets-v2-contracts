@@ -9,6 +9,7 @@ pub struct Market {
     pub dao_account_id: AccountId,
     pub resolved: bool,
     pub published: bool,
+    pub closed: bool,
     pub proposals: Vec<u64>,
 }
 
@@ -21,6 +22,7 @@ pub struct MarketData {
     pub category: Option<String>,
     pub subcategory: Option<String>,
     pub options: Vec<String>,
-    pub due_date: u128,
+    pub expiration_date: u64,
+    pub resolution_window: u64,
 }
 
