@@ -1,3 +1,3 @@
 #!/bin/bash
 RUSTFLAGS='-C link-arg=-s' cargo build --target wasm32-unknown-unknown --release
-cp ./target/wasm32-unknown-unknown/release/market-factory.wasm ../src/
+cp ./target/wasm32-unknown-unknown/release/market_factory.wasm res/
