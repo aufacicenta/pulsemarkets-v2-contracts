@@ -1,6 +1,7 @@
 use near_sdk::serde_json::json;
 use near_sdk::{env, near_bindgen};
 use near_sdk::{AccountId, Promise};
+use near_sdk::json_types::Base64VecU8;
 use std::default::Default;
 
 use crate::consts::*;
@@ -15,67 +16,54 @@ impl Default for MarketFactory {
 #[near_bindgen]
 impl MarketFactory {
     #[init]
-    pub fn new(escrow_factory_account_id: AccountId, dao_account_id: AccountId) -> Self {
+    pub fn new() -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
         }
 
         Self {
             markets: Vec::new(),
-            escrow_factory_account_id,
-            dao_account_id,
         }
     }
 
     #[payable]
-    pub fn create_market(&mut self, description: String, market_options: Vec<String>) -> Promise {
+    pub fn create_market(&mut self, args: Base64VecU8, num_options: u8) -> Promise {
         let name = format!("market_{}", self.markets.len() + 1);
         let market_account_id: AccountId = format!("{}.{}", name, env::current_account_id())
             .parse()
             .unwrap();
 
-        let create_escrow_promise = Promise::new(self.escrow_factory_account_id.clone())
-            .function_call(
-                "create_conditional_escrow".to_string(),
-                json!({ "name": "name".to_string(), "args": {} })
-                    .to_string()
-                    .into_bytes(),
-                0,
-                GAS_FOR_CREATE_ESCROW,
-            );
+        //let tes: Vec<u8> = args.into();
 
         let create_market_promise = Promise::new(market_account_id.clone())
             .create_account()
             .add_full_access_key(env::signer_account_pk())
-            .transfer(env::attached_deposit())
+            .transfer(BALANCE_CREATE_MARKET)
             .deploy_contract(MARKET_CODE.to_vec())
             .function_call(
                 "new".to_string(),
-                json!({ "description": description, "dao_account_id": self.dao_account_id })
-                    .to_string()
-                    .into_bytes(),
+                args.into(),
                 0,
                 GAS_FOR_CREATE_MARKET,
             );
 
         let process_market_options_promise = Promise::new(market_account_id.clone()).function_call(
-            "process_market_options".to_string(),
-            json!({ "market_options": market_options })
-                .to_string()
-                .into_bytes(),
-            0,
-            GAS_FOR_PROCESS_MARKET_OPTIONS,
+            "publish_market".to_string(),
+            json!({}).to_string().into_bytes(),
+            BALANCE_PROPOSAL_BOND * num_options as u128,
+            GAS_FOR_PROCESS_MARKET_OPTIONS * num_options as u64,
         );
 
         let create_market_callback = Promise::new(env::current_account_id()).function_call(
             "on_create_market_callback".to_string(),
-            json!({}).to_string().into_bytes(),
+            json!({ "market_account_id": market_account_id})
+                .to_string()
+                .into_bytes(),
             0,
             GAS_FOR_CREATE_MARKET_CALLBACK,
         );
 
-        create_escrow_promise
-            .and(create_market_promise)
+        create_market_promise
             .and(process_market_options_promise)
             .then(create_market_callback)
     }
