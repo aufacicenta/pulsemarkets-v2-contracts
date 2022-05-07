@@ -5,8 +5,8 @@ use crate::storage::*;
 #[near_bindgen]
 impl Market {
     #[private]
-    pub fn on_create_proposal_callback(&mut self) {
-        let market_options_len = self.market.options.len() as u64;
+    pub fn on_create_proposals_callback(&mut self) {
+        let market_options_len = self.data.options.len() as u64;
 
         if env::promise_results_count() != market_options_len + 1 {
             env::panic_str("ERR_CREATE_PROPOSALS_RESPONSES");

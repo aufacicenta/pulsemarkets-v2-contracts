@@ -16,13 +16,13 @@ impl Default for Market {
 #[near_bindgen]
 impl Market {
     #[init]
-    pub fn new(market: MarketData, dao_account_id: AccountId) -> Self {
+    pub fn new(data: MarketData, dao_account_id: AccountId) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
         }
 
         Self {
-            market,
+            data,
             dao_account_id,
             resolved: false,
             published: false,
@@ -47,7 +47,7 @@ impl Market {
         let mut promises: Promise = Promise::new(self.dao_account_id.clone());
         let mut count = 0;
 
-        for market_option in &self.market.options {
+        for market_option in &self.data.options {
             let args = Base64VecU8(json!({ "response": count }).to_string().into_bytes());
             let new_proposal = Promise::new(self.dao_account_id.clone()).function_call(
                 "add_proposal".to_string(),
@@ -55,7 +55,7 @@ impl Market {
                     "proposal": {
                         "description": format!("{}:\n{}\nR: {}$$$$$$$$ProposeCustomFunctionCall",
                             env::current_account_id().to_string(),
-                            self.market.description,
+                            self.data.description,
                             market_option),
                         "kind": {
                             "FunctionCall": {
@@ -81,7 +81,7 @@ impl Market {
         }
 
         let callback = Promise::new(env::current_account_id()).function_call(
-            "on_create_proposal_callback".to_string(),
+            "on_create_proposals_callback".to_string(),
             json!({}).to_string().into_bytes(),
             0,
             GAS_CREATE_DAO_PROPOSAL_CALLBACK,
@@ -129,7 +129,7 @@ impl Market {
             env::panic_str("ERR_DAO_ACCOUNT");
         }
 
-        if response >= self.market.options.len() as u64 {
+        if response >= self.data.options.len() as u64 {
             env::panic_str("ERR_RESPONSE_INDEX");
         }
 

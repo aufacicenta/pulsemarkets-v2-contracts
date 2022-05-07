@@ -6,7 +6,7 @@ use near_sdk::{near_bindgen, AccountId, Balance};
 #[near_bindgen]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Market {
-    pub market: MarketData,
+    pub data: MarketData,
     pub dao_account_id: AccountId,
     pub resolved: bool,
     pub published: bool,
