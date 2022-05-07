@@ -50,13 +50,13 @@ impl Market {
         for market_option in &self.data.options {
             let proposal_id = self.get_random_proposal_id();
 
-            self.proposals.push(proposal_id);
-
             let args = Base64VecU8(
                 json!({ "proposal_id": proposal_id })
                     .to_string()
                     .into_bytes(),
             );
+
+            self.proposals.push(proposal_id);
 
             let new_proposal = Promise::new(self.dao_account_id.clone()).function_call(
                 "add_proposal".to_string(),
@@ -159,7 +159,7 @@ impl Market {
         let mut payment = 0;
         match self.deposits_by_proposal.get(&payee) {
             Some(entry) => {
-                for (proposal_id, balance) in entry.iter() {
+                for (_proposal_id, balance) in entry.iter() {
                     payment = *balance
                 }
             }
