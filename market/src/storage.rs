@@ -1,6 +1,7 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+use near_sdk::collections::LookupMap;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{near_bindgen, AccountId};
+use near_sdk::{near_bindgen, AccountId, Balance};
 
 #[near_bindgen]
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -11,6 +12,9 @@ pub struct Market {
     pub published: bool,
     pub closed: bool,
     pub proposals: Vec<u64>,
+    pub total_funds: Balance,
+    // proposal_id to AccountId -> Balance
+    pub deposits: LookupMap<u64, LookupMap<AccountId, Balance>>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
@@ -25,4 +29,3 @@ pub struct MarketData {
     pub expiration_date: u64,
     pub resolution_window: u64,
 }
-

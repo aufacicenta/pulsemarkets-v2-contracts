@@ -1,7 +1,7 @@
+use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
 use near_sdk::{env, near_bindgen};
 use near_sdk::{AccountId, Promise};
-use near_sdk::json_types::Base64VecU8;
 use std::default::Default;
 
 use crate::consts::*;
@@ -40,12 +40,7 @@ impl MarketFactory {
             .add_full_access_key(env::signer_account_pk())
             .transfer(BALANCE_CREATE_MARKET)
             .deploy_contract(MARKET_CODE.to_vec())
-            .function_call(
-                "new".to_string(),
-                args.into(),
-                0,
-                GAS_FOR_CREATE_MARKET,
-            );
+            .function_call("new".to_string(), args.into(), 0, GAS_FOR_CREATE_MARKET);
 
         let process_market_options_promise = Promise::new(market_account_id.clone()).function_call(
             "publish_market".to_string(),
@@ -56,7 +51,7 @@ impl MarketFactory {
 
         let create_market_callback = Promise::new(env::current_account_id()).function_call(
             "on_create_market_callback".to_string(),
-            json!({ "market_account_id": market_account_id})
+            json!({ "market_account_id": market_account_id })
                 .to_string()
                 .into_bytes(),
             0,

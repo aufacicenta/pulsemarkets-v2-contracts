@@ -1,7 +1,7 @@
+use near_sdk::collections::LookupMap;
 use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen};
-use near_sdk::{AccountId, Promise};
+use near_sdk::{env, log, near_bindgen, AccountId, Promise};
 use std::default::Default;
 
 use crate::consts::*;
@@ -28,6 +28,8 @@ impl Market {
             published: false,
             closed: false,
             proposals: Vec::new(),
+            total_funds: 0,
+            deposits: LookupMap::new(b"d"),
         }
     }
 
@@ -89,7 +91,7 @@ impl Market {
     }
 
     #[payable]
-    pub fn bet(&mut self) {
+    pub fn bet(&mut self, proposal_id: u64) {
         if !self.published {
             env::panic_str("ERR_MARKET_IS_NOT_PUBLISHED");
         }
@@ -98,7 +100,22 @@ impl Market {
             env::panic_str("ERR_MARKET_EXPIRED");
         }
 
-        //@TODO A user makes a bet. Deposit funds
+        if env::attached_deposit() == 0 {
+            env::panic_str("ERR_DEPOSIT_SHOULD_NOT_BE_0");
+        }
+
+        // @TODO attached_deposit could also be an NEP141 Collateral Token
+        let amount = env::attached_deposit();
+        let payee = env::signer_account_id();
+        let current_balance = self.deposits_of(&proposal_id, &payee);
+        let new_balance = &(current_balance.wrapping_add(amount));
+
+        match self.deposits.get(&proposal_id) {
+            Some(mut entry) => entry.insert(&payee, new_balance),
+            None => env::panic_str("ERR_WHILE_UPDATING_BALANCE"),
+        };
+
+        self.total_funds = self.total_funds.wrapping_add(amount);
     }
 
     pub fn resolve(&mut self, response: u64) {
