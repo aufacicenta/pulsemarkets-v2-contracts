@@ -1,7 +1,7 @@
+use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
 use near_sdk::{env, log, near_bindgen};
 use near_sdk::{AccountId, Promise};
-use near_sdk::json_types::{Base64VecU8};
 use std::default::Default;
 
 use crate::consts::*;
@@ -31,34 +31,6 @@ impl Market {
         }
     }
 
-    pub fn get_market_data(&self) -> MarketData {
-        self.market.clone()
-    }
-
-    pub fn get_proposals(&self) -> Vec<u64> {
-        self.proposals.clone()
-    }
-
-    pub fn is_published(&self) -> bool {
-        self.published
-    }
-
-    pub fn is_resolved(&self) -> bool {
-        self.resolved
-    }
-
-    pub fn is_closed(&self) -> bool {
-        self.closed
-    }
-
-    pub fn is_market_expired(&self) -> bool {
-        self.market.expiration_date < env::block_timestamp().try_into().unwrap()
-    }
-
-    pub fn is_resolution_window_expired(&self) -> bool {
-        self.market.expiration_date + self.market.resolution_window < env::block_timestamp().try_into().unwrap()
-    }
-
     #[payable]
     pub fn publish_market(&mut self) -> Promise {
         if self.published {
@@ -74,7 +46,7 @@ impl Market {
         let mut count = 0;
 
         for market_option in &self.market.options {
-            let args = Base64VecU8(json!({"response": count}).to_string().into_bytes());
+            let args = Base64VecU8(json!({ "response": count }).to_string().into_bytes());
             let new_proposal = Promise::new(self.dao_account_id.clone()).function_call(
                 "add_proposal".to_string(),
                 json!({
@@ -95,20 +67,20 @@ impl Market {
                             }
                         }
                     }
-                }).to_string().into_bytes(),
+                })
+                .to_string()
+                .into_bytes(),
                 BALANCE_PROPOSAL_BOND,
                 GAS_CREATE_DAO_PROPOSAL,
             );
-            
+
             promises = promises.and(new_proposal);
             count = count + 1;
         }
 
         let callback = Promise::new(env::current_account_id()).function_call(
             "on_create_proposal_callback".to_string(),
-            json!({})
-                .to_string()
-                .into_bytes(),
+            json!({}).to_string().into_bytes(),
             0,
             GAS_CREATE_DAO_PROPOSAL_CALLBACK,
         );
@@ -130,12 +102,10 @@ impl Market {
     }
 
     pub fn resolve(&mut self, response: u64) {
-        log!("response {}",
-            response
-        );
+        log!("response {}", response);
 
         if self.resolved {
-            env::panic_str("ERR_MAKERT_ALREADY_RESOLVED");
+            env::panic_str("ERR_MARKET_ALREADY_RESOLVED");
         }
 
         if env::signer_account_id() != self.dao_account_id {
