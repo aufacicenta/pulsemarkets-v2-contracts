@@ -26,10 +26,10 @@ impl Market {
             dao_account_id,
             resolved: false,
             published: false,
-            closed: false,
             proposals: Vec::new(),
             total_funds: 0,
-            deposits: LookupMap::new(b"d"),
+            winning_proposal_id: None,
+            deposits_by_proposal: LookupMap::new(b"d"),
         }
     }
 
@@ -48,7 +48,16 @@ impl Market {
         let mut count = 0;
 
         for market_option in &self.data.options {
-            let args = Base64VecU8(json!({ "response": count }).to_string().into_bytes());
+            let proposal_id = self.get_random_proposal_id();
+
+            self.proposals.push(proposal_id);
+
+            let args = Base64VecU8(
+                json!({ "proposal_id": proposal_id })
+                    .to_string()
+                    .into_bytes(),
+            );
+
             let new_proposal = Promise::new(self.dao_account_id.clone()).function_call(
                 "add_proposal".to_string(),
                 json!({
@@ -91,7 +100,7 @@ impl Market {
     }
 
     #[payable]
-    pub fn bet(&mut self, proposal_id: u64) {
+    pub fn bet(&mut self, proposal_id: ProposalId) {
         if !self.published {
             env::panic_str("ERR_MARKET_IS_NOT_PUBLISHED");
         }
@@ -107,19 +116,19 @@ impl Market {
         // @TODO attached_deposit could also be an NEP141 Collateral Token
         let amount = env::attached_deposit();
         let payee = env::signer_account_id();
-        let current_balance = self.deposits_of(&proposal_id, &payee);
+        let current_balance = self.deposits_of(&payee, &proposal_id);
         let new_balance = &(current_balance.wrapping_add(amount));
 
-        match self.deposits.get(&proposal_id) {
-            Some(mut entry) => entry.insert(&payee, new_balance),
+        match self.deposits_by_proposal.get(&payee) {
+            Some(mut entry) => entry.insert(proposal_id, *new_balance),
             None => env::panic_str("ERR_WHILE_UPDATING_BALANCE"),
         };
 
         self.total_funds = self.total_funds.wrapping_add(amount);
     }
 
-    pub fn resolve(&mut self, response: u64) {
-        log!("response {}", response);
+    pub fn resolve(&mut self, proposal_id: ProposalId) {
+        log!("proposal_id: {}", proposal_id);
 
         if self.resolved {
             env::panic_str("ERR_MARKET_ALREADY_RESOLVED");
@@ -129,28 +138,38 @@ impl Market {
             env::panic_str("ERR_DAO_ACCOUNT");
         }
 
-        if response >= self.data.options.len() as u64 {
-            env::panic_str("ERR_RESPONSE_INDEX");
-        }
-
-        if self.is_resolution_window_expired() {
-            env::panic_str("ERR_RESOLUTION_WINDOW_EXPIRED");
-        }
-
-        //@TODO Resolve Marter. Delegate Funds
+        self.winning_proposal_id = Some(proposal_id);
         self.resolved = true;
     }
 
-    pub fn close(&mut self) {
-        if self.closed {
-            env::panic_str("ERR_MAKERT_ALREADY_CLOSED");
-        }
-
+    pub fn withdraw(&mut self) {
         if !self.is_resolution_window_expired() {
-            env::panic_str("ERR_RESOLUTION_WINDOW_SHOULD_BE_EXPIRED");
+            env::panic_str("ERR_RESOLUTION_WINDOW_STILL_OPEN");
         }
 
-        //@TODO Close market when no solution is found. Return funds
-        self.closed = true;
+        if !self.resolved {
+            env::panic_str("ERR_MARKET_NOT_RESOLVED");
+        }
+
+        let payee = env::signer_account_id();
+
+        // @TODO iterate over deposits to get the amount deposited by the payee to each proposal_id
+        // @TODO if the player has balance on a proposal_id, initialize its payment
+        // @TODO calculate the proportion of additional payment the player is owed from the deposits of the losing proposal_ids, not including their own losing bets
+        let mut payment = 0;
+        match self.deposits_by_proposal.get(&payee) {
+            Some(entry) => {
+                for (proposal_id, balance) in entry.iter() {
+                    payment = *balance
+                }
+            }
+            None => payment = 0,
+        };
+
+        Promise::new(payee.clone()).transfer(payment);
+        // @TODO subtract the deposits of the player so that they can't withdraw again
+        // self.deposits.insert(&payee, &0);
+
+        self.total_funds = self.total_funds.wrapping_sub(payment);
     }
 }

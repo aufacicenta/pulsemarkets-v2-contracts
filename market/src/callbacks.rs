@@ -14,10 +14,7 @@ impl Market {
 
         for n in 1..market_options_len + 1 {
             match env::promise_result(n) {
-                PromiseResult::Successful(res) => {
-                    let proposal_id: u64 = near_sdk::serde_json::from_slice(&res).unwrap();
-                    self.proposals.push(proposal_id);
-                }
+                PromiseResult::Successful(_res) => {}
                 _ => env::panic_str("ERR_CREATE_PROPOSALS_UNSUCCESSFUL"),
             }
         }
