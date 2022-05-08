@@ -18,10 +18,6 @@ impl Market {
         self.market.clone()
     }
 
-    pub fn get_proposals(&self) -> Vec<u64> {
-        self.proposals.clone()
-    }
-
     pub fn is_published(&self) -> bool {
         self.published
     }

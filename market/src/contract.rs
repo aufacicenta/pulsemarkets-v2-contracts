@@ -26,7 +26,6 @@ impl Market {
             dao_account_id,
             resolved: false,
             published: false,
-            proposals: Vec::new(),
             total_funds: 0,
             winning_options_idx: None,
             deposits_by_options_idx: LookupMap::new(b"d"),
@@ -43,8 +42,7 @@ impl Market {
             env::panic_str("ERR_MARKET_EXPIRED");
         }
 
-        //@TODO Research for an alternative to not create an empty Promise
-        let mut promises: Promise = Promise::new(self.dao_account_id.clone());
+        let mut promise: Promise = Promise::new(self.dao_account_id.clone());
         let mut market_options_idx = 0;
 
         for market_option in &self.market.options {
@@ -54,7 +52,7 @@ impl Market {
                     .into_bytes(),
             );
 
-            let new_proposal = Promise::new(self.dao_account_id.clone()).function_call(
+            promise = promise.function_call(
                 "add_proposal".to_string(),
                 json!({
                     "proposal": {
@@ -81,7 +79,6 @@ impl Market {
                 GAS_CREATE_DAO_PROPOSAL,
             );
 
-            promises = promises.and(new_proposal);
             market_options_idx += 1;
         }
 
@@ -92,7 +89,7 @@ impl Market {
             GAS_CREATE_DAO_PROPOSAL_CALLBACK,
         );
 
-        promises.then(callback)
+        promise.then(callback)
     }
 
     #[payable]

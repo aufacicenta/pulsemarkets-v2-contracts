@@ -12,7 +12,6 @@ pub struct Market {
     pub resolved: bool,
     pub published: bool,
     pub total_funds: Balance,
-    pub proposals: Vec<u64>,
     pub winning_options_idx: Option<u64>,
     pub deposits_by_options_idx: LookupMap<AccountId, HashMap<u64, Balance>>,
 }
