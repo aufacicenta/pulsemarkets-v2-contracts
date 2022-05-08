@@ -1,6 +1,4 @@
 use near_sdk::{env, near_bindgen, AccountId, Balance};
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
 
 use crate::storage::*;
 
@@ -39,15 +37,5 @@ impl Market {
     pub fn is_resolution_window_expired(&self) -> bool {
         self.data.expiration_date + self.data.resolution_window
             < env::block_timestamp().try_into().unwrap()
-    }
-
-    pub fn get_random_proposal_id(&self) -> ProposalId {
-        let rand_string: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(15)
-            .map(char::from)
-            .collect();
-
-        return rand_string;
     }
 }
