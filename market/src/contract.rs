@@ -28,8 +28,8 @@ impl Market {
             published: false,
             proposals: Vec::new(),
             total_funds: 0,
-            winning_proposal_id: None,
-            deposits_by_proposal: LookupMap::new(b"d"),
+            winning_options_idx: None,
+            deposits_by_options_idx: LookupMap::new(b"d"),
         }
     }
 
@@ -45,11 +45,11 @@ impl Market {
 
         //@TODO Research for an alternative to not create an empty Promise
         let mut promises: Promise = Promise::new(self.dao_account_id.clone());
-        let mut count = 0;
+        let mut market_options_idx = 0;
 
         for market_option in &self.data.options {
             let args = Base64VecU8(
-                json!({ "response_ix": count })
+                json!({ "options_idx": market_options_idx })
                     .to_string()
                     .into_bytes(),
             );
@@ -82,7 +82,7 @@ impl Market {
             );
 
             promises = promises.and(new_proposal);
-            count = count + 1;
+            market_options_idx += 1;
         }
 
         let callback = Promise::new(env::current_account_id()).function_call(
@@ -96,7 +96,7 @@ impl Market {
     }
 
     #[payable]
-    pub fn bet(&mut self, proposal_id: ProposalId) {
+    pub fn bet(&mut self, options_idx: u64) {
         if !self.published {
             env::panic_str("ERR_MARKET_IS_NOT_PUBLISHED");
         }
@@ -112,19 +112,19 @@ impl Market {
         // @TODO attached_deposit could also be an NEP141 Collateral Token
         let amount = env::attached_deposit();
         let payee = env::signer_account_id();
-        let current_balance = self.deposits_of(&payee, &proposal_id);
+        let current_balance = self.deposits_of(&payee, &options_idx);
         let new_balance = &(current_balance.wrapping_add(amount));
 
-        match self.deposits_by_proposal.get(&payee) {
-            Some(mut entry) => entry.insert(proposal_id, *new_balance),
+        match self.deposits_by_options_idx.get(&payee) {
+            Some(mut entry) => entry.insert(options_idx, *new_balance),
             None => env::panic_str("ERR_WHILE_UPDATING_BALANCE"),
         };
 
         self.total_funds = self.total_funds.wrapping_add(amount);
     }
 
-    pub fn resolve(&mut self, proposal_id: ProposalId) {
-        log!("proposal_id: {}", proposal_id);
+    pub fn resolve(&mut self, options_idx: u64) {
+        log!("options_idx: {}", options_idx);
 
         if self.resolved {
             env::panic_str("ERR_MARKET_ALREADY_RESOLVED");
@@ -134,7 +134,7 @@ impl Market {
             env::panic_str("ERR_DAO_ACCOUNT");
         }
 
-        self.winning_proposal_id = Some(proposal_id);
+        self.winning_options_idx = Some(options_idx);
         self.resolved = true;
     }
 
@@ -153,7 +153,7 @@ impl Market {
         // @TODO if the player has balance on a proposal_id, initialize its payment
         // @TODO calculate the proportion of additional payment the player is owed from the deposits of the losing proposal_ids, not including their own losing bets
         let mut payment = 0;
-        match self.deposits_by_proposal.get(&payee) {
+        match self.deposits_by_options_idx.get(&payee) {
             Some(entry) => {
                 for (_proposal_id, balance) in entry.iter() {
                     payment = *balance

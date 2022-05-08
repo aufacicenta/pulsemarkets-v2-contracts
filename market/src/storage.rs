@@ -4,8 +4,6 @@ use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{near_bindgen, AccountId, Balance};
 use std::collections::HashMap;
 
-pub type ProposalId = String;
-
 #[near_bindgen]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Market {
@@ -13,10 +11,10 @@ pub struct Market {
     pub dao_account_id: AccountId,
     pub resolved: bool,
     pub published: bool,
-    pub proposals: Vec<ProposalId>,
-    pub winning_proposal_id: Option<ProposalId>,
     pub total_funds: Balance,
-    pub deposits_by_proposal: LookupMap<AccountId, HashMap<ProposalId, Balance>>,
+    pub proposals: Vec<u64>,
+    pub winning_options_idx: Option<u64>,
+    pub deposits_by_options_idx: LookupMap<AccountId, HashMap<u64, Balance>>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]

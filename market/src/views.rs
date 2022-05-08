@@ -4,9 +4,9 @@ use crate::storage::*;
 
 #[near_bindgen]
 impl Market {
-    pub fn deposits_of(&self, payee: &AccountId, proposal_id: &ProposalId) -> Balance {
-        match self.deposits_by_proposal.get(payee) {
-            Some(entry) => match entry.get(proposal_id) {
+    pub fn deposits_of(&self, payee: &AccountId, options_idx: &u64) -> Balance {
+        match self.deposits_by_options_idx.get(payee) {
+            Some(entry) => match entry.get(options_idx) {
                 Some(balance) => *balance,
                 None => 0,
             },
@@ -18,7 +18,7 @@ impl Market {
         self.data.clone()
     }
 
-    pub fn get_proposals(&self) -> Vec<String> {
+    pub fn get_proposals(&self) -> Vec<u64> {
         self.proposals.clone()
     }
 
