@@ -16,13 +16,13 @@ impl Default for Market {
 #[near_bindgen]
 impl Market {
     #[init]
-    pub fn new(data: MarketData, dao_account_id: AccountId) -> Self {
+    pub fn new(market: MarketData, dao_account_id: AccountId) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
         }
 
         Self {
-            data,
+            market,
             dao_account_id,
             resolved: false,
             published: false,
@@ -47,7 +47,7 @@ impl Market {
         let mut promises: Promise = Promise::new(self.dao_account_id.clone());
         let mut market_options_idx = 0;
 
-        for market_option in &self.data.options {
+        for market_option in &self.market.options {
             let args = Base64VecU8(
                 json!({ "options_idx": market_options_idx })
                     .to_string()
@@ -60,7 +60,7 @@ impl Market {
                     "proposal": {
                         "description": format!("{}:\n{}\nR: {}$$$$$$$$ProposeCustomFunctionCall",
                             env::current_account_id().to_string(),
-                            self.data.description,
+                            self.market.description,
                             market_option),
                         "kind": {
                             "FunctionCall": {

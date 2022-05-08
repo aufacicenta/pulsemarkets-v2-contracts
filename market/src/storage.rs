@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[near_bindgen]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Market {
-    pub data: MarketData,
+    pub market: MarketData,
     pub dao_account_id: AccountId,
     pub resolved: bool,
     pub published: bool,

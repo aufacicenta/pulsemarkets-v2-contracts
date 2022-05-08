@@ -15,7 +15,7 @@ impl Market {
     }
 
     pub fn get_market_data(&self) -> MarketData {
-        self.data.clone()
+        self.market.clone()
     }
 
     pub fn get_proposals(&self) -> Vec<u64> {
@@ -31,11 +31,11 @@ impl Market {
     }
 
     pub fn is_market_expired(&self) -> bool {
-        self.data.expiration_date < env::block_timestamp().try_into().unwrap()
+        self.market.expiration_date < env::block_timestamp().try_into().unwrap()
     }
 
     pub fn is_resolution_window_expired(&self) -> bool {
-        self.data.expiration_date + self.data.resolution_window
+        self.market.expiration_date + self.market.resolution_window
             < env::block_timestamp().try_into().unwrap()
     }
 }
