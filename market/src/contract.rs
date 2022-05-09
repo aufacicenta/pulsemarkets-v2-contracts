@@ -1,7 +1,7 @@
 use near_sdk::collections::LookupMap;
 use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise};
+use near_sdk::{env, log, near_bindgen, AccountId, Promise};
 use std::default::Default;
 
 use crate::consts::*;
@@ -93,15 +93,6 @@ impl Market {
         promise.then(callback)
     }
 
-    fn get_options_by_account(&self, account_id: &AccountId) -> LookupMap<u64, Balance> {
-        let options = self.deposits_by_options_idx.get(account_id).unwrap_or_else(|| {
-            LookupMap::new(
-                StorageKeys::SubUserOptions { account_hash: env::sha256(account_id.as_bytes()) }
-            )
-        });
-        options
-    }
-
     #[payable]
     pub fn bet(&mut self, options_idx: u64) {
         if !self.published {
@@ -123,7 +114,7 @@ impl Market {
         // @TODO attached_deposit could also be an NEP141 Collateral Token
         let amount = env::attached_deposit();
 
-        // Update amount by account 
+        // Update amount by account
         let payee = env::signer_account_id();
         let current_balance_by_account = self.deposits_by_account(&payee, &options_idx);
         let new_balance_by_account = &(current_balance_by_account.wrapping_add(amount));
@@ -131,15 +122,17 @@ impl Market {
         let mut options_by_account = self.get_options_by_account(&payee);
         options_by_account.insert(&options_idx, new_balance_by_account);
 
-        self.deposits_by_options_idx.insert(&payee, &options_by_account);
+        self.deposits_by_options_idx
+            .insert(&payee, &options_by_account);
 
         // Update amount totals by option
         let current_balance_by_option = self.deposits_by_option(&options_idx);
         let new_balance_by_option = &(current_balance_by_option.wrapping_add(amount));
 
-        self.totals_by_options_idx.insert(&options_idx, new_balance_by_option);
+        self.totals_by_options_idx
+            .insert(&options_idx, new_balance_by_option);
 
-        // Update gran total
+        // Update grand total
         self.total_funds = self.total_funds.wrapping_add(amount);
     }
 
@@ -175,7 +168,11 @@ impl Market {
             env::panic_str("ERR_MARKET_NOT_RESOLVED");
         }
 
-        if self.deposits_by_options_idx.get(&env::signer_account_id()).is_none(){
+        if self
+            .deposits_by_options_idx
+            .get(&env::signer_account_id())
+            .is_none()
+        {
             env::panic_str("ERR_ACCOUNT_DID_NOT_BET");
         }
 
@@ -188,13 +185,13 @@ impl Market {
         };
 
         if bet == 0 {
-            env::panic_str("ERR_ACCOUNT_DID_NOT_WIN");
+            env::panic_str("ERR_WITHDRAW_ACCOUNT_BET_IS_0");
         }
 
-        //@CHECK These calculations could be done once at market resolve fn 
+        // @CHECK These calculations could be done once at market resolve fn
         let mut total_losses = 0;
         let mut total_win = 0;
-        for idx in 0 .. self.market.options.len() {
+        for idx in 0..self.market.options.len() {
             if idx as u64 == self.winning_options_idx {
                 total_win = self.deposits_by_option(&(idx as u64));
             } else {
@@ -204,7 +201,7 @@ impl Market {
 
         let payment = total_losses * bet / total_win;
 
-        //@CHECK subtract the deposits of the player so that they can't withdraw again
+        // @CHECK subtract the deposits of the player so that they can't withdraw again
         // Should we keep a record of withdrawals? If so, we need a new struct to track it.
         options_by_account.insert(&self.winning_options_idx, &0);
 

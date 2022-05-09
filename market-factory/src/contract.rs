@@ -33,8 +33,6 @@ impl MarketFactory {
             .parse()
             .unwrap();
 
-        //let tes: Vec<u8> = args.into();
-
         let create_market_promise = Promise::new(market_account_id.clone())
             .create_account()
             .add_full_access_key(env::signer_account_pk())
