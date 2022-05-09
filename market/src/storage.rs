@@ -1,8 +1,7 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::LookupMap;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{near_bindgen, AccountId, Balance};
-use std::collections::HashMap;
+use near_sdk::{near_bindgen, AccountId, Balance, BorshStorageKey};
 
 #[near_bindgen]
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -12,8 +11,16 @@ pub struct Market {
     pub resolved: bool,
     pub published: bool,
     pub total_funds: Balance,
-    pub winning_options_idx: Option<u64>,
-    pub deposits_by_options_idx: LookupMap<AccountId, HashMap<u64, Balance>>,
+    pub winning_options_idx: u64,
+    pub totals_by_options_idx: LookupMap<u64, Balance>,
+    pub deposits_by_options_idx: LookupMap<AccountId, LookupMap<u64, Balance>>,
+}
+
+#[derive(BorshStorageKey, BorshSerialize)]
+pub enum StorageKeys {
+    Totals,
+    Deposits,
+    SubUserOptions { account_hash: Vec<u8> },
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]

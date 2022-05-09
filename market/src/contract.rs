@@ -1,7 +1,7 @@
 use near_sdk::collections::LookupMap;
 use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen, AccountId, Promise};
+use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise};
 use std::default::Default;
 
 use crate::consts::*;
@@ -27,8 +27,9 @@ impl Market {
             resolved: false,
             published: false,
             total_funds: 0,
-            winning_options_idx: None,
-            deposits_by_options_idx: LookupMap::new(b"d"),
+            winning_options_idx: 0,
+            totals_by_options_idx: LookupMap::new(StorageKeys::Totals),
+            deposits_by_options_idx: LookupMap::new(StorageKeys::Deposits),
         }
     }
 
@@ -92,6 +93,15 @@ impl Market {
         promise.then(callback)
     }
 
+    fn get_options_by_account(&self, account_id: &AccountId) -> LookupMap<u64, Balance> {
+        let options = self.deposits_by_options_idx.get(account_id).unwrap_or_else(|| {
+            LookupMap::new(
+                StorageKeys::SubUserOptions { account_hash: env::sha256(account_id.as_bytes()) }
+            )
+        });
+        options
+    }
+
     #[payable]
     pub fn bet(&mut self, options_idx: u64) {
         if !self.published {
@@ -106,17 +116,30 @@ impl Market {
             env::panic_str("ERR_DEPOSIT_SHOULD_NOT_BE_0");
         }
 
+        if options_idx >= self.market.options.len() as u64 {
+            env::panic_str("ERR_OPTION_INDEX");
+        }
+
         // @TODO attached_deposit could also be an NEP141 Collateral Token
         let amount = env::attached_deposit();
+
+        // Update amount by user 
         let payee = env::signer_account_id();
-        let current_balance = self.deposits_of(&payee, &options_idx);
-        let new_balance = &(current_balance.wrapping_add(amount));
+        let current_balance_by_user = self.deposits_by_address(&payee, &options_idx);
+        let new_balance_by_user = &(current_balance_by_user.wrapping_add(amount));
 
-        match self.deposits_by_options_idx.get(&payee) {
-            Some(mut entry) => entry.insert(options_idx, *new_balance),
-            None => env::panic_str("ERR_WHILE_UPDATING_BALANCE"),
-        };
+        let mut options_by_user = self.get_options_by_account(&payee);
+        options_by_user.insert(&options_idx, new_balance_by_user);
 
+        self.deposits_by_options_idx.insert(&payee, &options_by_user);
+
+        // Update amount totals by option
+        let current_balance_by_option = self.deposits_by_option(&options_idx);
+        let new_balance_by_option = &(current_balance_by_option.wrapping_add(amount));
+
+        self.totals_by_options_idx.insert(&options_idx, new_balance_by_option);
+
+        // Update gran total
         self.total_funds = self.total_funds.wrapping_add(amount);
     }
 
@@ -127,11 +150,19 @@ impl Market {
             env::panic_str("ERR_MARKET_ALREADY_RESOLVED");
         }
 
+        if self.is_resolution_window_expired() {
+            env::panic_str("ERR_RESOLUTION_WINDOW_EXPIRED");
+        }
+
+        if options_idx >= self.market.options.len() as u64 {
+            env::panic_str("ERR_OPTION_INDEX");
+        }
+
         if env::signer_account_id() != self.dao_account_id {
             env::panic_str("ERR_DAO_ACCOUNT");
         }
 
-        self.winning_options_idx = Some(options_idx);
+        self.winning_options_idx = options_idx;
         self.resolved = true;
     }
 
@@ -144,24 +175,40 @@ impl Market {
             env::panic_str("ERR_MARKET_NOT_RESOLVED");
         }
 
+        if self.deposits_by_options_idx.get(&env::signer_account_id()).is_none(){
+            env::panic_str("ERR_ACCOUNT_DID_NOT_BET");
+        }
+
         let payee = env::signer_account_id();
 
-        // @TODO iterate over deposits to get the amount deposited by the payee to each proposal_id
-        // @TODO if the player has balance on a proposal_id, initialize its payment
-        // @TODO calculate the proportion of additional payment the player is owed from the deposits of the losing proposal_ids, not including their own losing bets
-        let mut payment = 0;
-        match self.deposits_by_options_idx.get(&payee) {
-            Some(entry) => {
-                for (_proposal_id, balance) in entry.iter() {
-                    payment = *balance
-                }
-            }
-            None => payment = 0,
+        let mut options_by_user = self.get_options_by_account(&payee);
+        let bet = match options_by_user.get(&self.winning_options_idx) {
+            Some(bet) => bet,
+            None => 0,
         };
 
+        if bet == 0 {
+            env::panic_str("ERR_ACCOUNT_DID_NOT_WIN");
+        }
+
+        //@CHECK These calculations could be done once at market resolve fn 
+        let mut total_losses = 0;
+        let mut total_win = 0;
+        for idx in 0 .. self.market.options.len() {
+            if idx as u64 == self.winning_options_idx {
+                total_win = self.deposits_by_option(&(idx as u64));
+            } else {
+                total_losses = total_losses + self.deposits_by_option(&(idx as u64));
+            }
+        }
+
+        let payment = total_losses * bet / total_win;
+
+        //@CHECK subtract the deposits of the player so that they can't withdraw again
+        // Should we keep a record of withdrawals? If so, we need a new struct to track it.
+        options_by_user.insert(&self.winning_options_idx, &0);
+
         Promise::new(payee.clone()).transfer(payment);
-        // @TODO subtract the deposits of the player so that they can't withdraw again
-        // self.deposits.insert(&payee, &0);
 
         self.total_funds = self.total_funds.wrapping_sub(payment);
     }

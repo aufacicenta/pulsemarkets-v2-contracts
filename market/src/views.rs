@@ -4,12 +4,19 @@ use crate::storage::*;
 
 #[near_bindgen]
 impl Market {
-    pub fn deposits_of(&self, payee: &AccountId, options_idx: &u64) -> Balance {
+    pub fn deposits_by_address(&self, payee: &AccountId, options_idx: &u64) -> Balance {
         match self.deposits_by_options_idx.get(payee) {
             Some(entry) => match entry.get(options_idx) {
-                Some(balance) => *balance,
+                Some(balance) => balance,
                 None => 0,
             },
+            None => 0,
+        }
+    }
+
+    pub fn deposits_by_option(&self, options_idx: &u64) -> Balance {
+        match self.totals_by_options_idx.get(options_idx) {
+            Some(deposit) => deposit,
             None => 0,
         }
     }
