@@ -123,15 +123,15 @@ impl Market {
         // @TODO attached_deposit could also be an NEP141 Collateral Token
         let amount = env::attached_deposit();
 
-        // Update amount by user 
+        // Update amount by account 
         let payee = env::signer_account_id();
-        let current_balance_by_user = self.deposits_by_address(&payee, &options_idx);
-        let new_balance_by_user = &(current_balance_by_user.wrapping_add(amount));
+        let current_balance_by_account = self.deposits_by_account(&payee, &options_idx);
+        let new_balance_by_account = &(current_balance_by_account.wrapping_add(amount));
 
-        let mut options_by_user = self.get_options_by_account(&payee);
-        options_by_user.insert(&options_idx, new_balance_by_user);
+        let mut options_by_account = self.get_options_by_account(&payee);
+        options_by_account.insert(&options_idx, new_balance_by_account);
 
-        self.deposits_by_options_idx.insert(&payee, &options_by_user);
+        self.deposits_by_options_idx.insert(&payee, &options_by_account);
 
         // Update amount totals by option
         let current_balance_by_option = self.deposits_by_option(&options_idx);
@@ -181,8 +181,8 @@ impl Market {
 
         let payee = env::signer_account_id();
 
-        let mut options_by_user = self.get_options_by_account(&payee);
-        let bet = match options_by_user.get(&self.winning_options_idx) {
+        let mut options_by_account = self.get_options_by_account(&payee);
+        let bet = match options_by_account.get(&self.winning_options_idx) {
             Some(bet) => bet,
             None => 0,
         };
@@ -206,7 +206,7 @@ impl Market {
 
         //@CHECK subtract the deposits of the player so that they can't withdraw again
         // Should we keep a record of withdrawals? If so, we need a new struct to track it.
-        options_by_user.insert(&self.winning_options_idx, &0);
+        options_by_account.insert(&self.winning_options_idx, &0);
 
         Promise::new(payee.clone()).transfer(payment);
 
