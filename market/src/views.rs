@@ -1,4 +1,3 @@
-use near_sdk::collections::LookupMap;
 use near_sdk::{env, near_bindgen, AccountId, Balance};
 
 use crate::storage::*;
@@ -13,18 +12,6 @@ impl Market {
             },
             None => 0,
         }
-    }
-
-    pub fn get_options_by_account(&self, account_id: &AccountId) -> LookupMap<u64, Balance> {
-        let options = self
-            .deposits_by_options_idx
-            .get(account_id)
-            .unwrap_or_else(|| {
-                LookupMap::new(StorageKeys::SubUserOptions {
-                    account_hash: env::sha256(account_id.as_bytes()),
-                })
-            });
-        options
     }
 
     pub fn deposits_by_option(&self, options_idx: &u64) -> Balance {

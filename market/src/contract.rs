@@ -1,7 +1,7 @@
 use near_sdk::collections::LookupMap;
 use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen, AccountId, Promise};
+use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise};
 use std::default::Default;
 
 use crate::consts::*;
@@ -26,6 +26,8 @@ impl Market {
             dao_account_id,
             resolved: false,
             published: false,
+            losing_balance: 0,
+            winning_balance: 0,
             total_funds: 0,
             winning_options_idx: 0,
             totals_by_options_idx: LookupMap::new(StorageKeys::Totals),
@@ -93,6 +95,18 @@ impl Market {
         promise.then(callback)
     }
 
+    fn get_options_by_account(&self, account_id: &AccountId) -> LookupMap<u64, Balance> {
+        let options = self
+            .deposits_by_options_idx
+            .get(account_id)
+            .unwrap_or_else(|| {
+                LookupMap::new(StorageKeys::SubUserOptions {
+                    account_hash: env::sha256(account_id.as_bytes()),
+                })
+            });
+        options
+    }
+
     #[payable]
     pub fn bet(&mut self, options_idx: u64) {
         if !self.published {
@@ -155,6 +169,17 @@ impl Market {
             env::panic_str("ERR_DAO_ACCOUNT");
         }
 
+        // Calculate final balances
+        for idx in 0 .. self.market.options.len() {
+            let amount = self.deposits_by_option(&(idx as u64));
+
+            if idx as u64 == self.winning_options_idx {
+                self.winning_balance = amount;
+            } else {
+                self.losing_balance = self.losing_balance.wrapping_add(amount);
+            }
+        }
+
         self.winning_options_idx = options_idx;
         self.resolved = true;
     }
@@ -188,18 +213,7 @@ impl Market {
             env::panic_str("ERR_WITHDRAW_ACCOUNT_BET_IS_0");
         }
 
-        // @CHECK These calculations could be done once at market resolve fn
-        let mut total_losses = 0;
-        let mut total_win = 0;
-        for idx in 0..self.market.options.len() {
-            if idx as u64 == self.winning_options_idx {
-                total_win = self.deposits_by_option(&(idx as u64));
-            } else {
-                total_losses = total_losses + self.deposits_by_option(&(idx as u64));
-            }
-        }
-
-        let payment = total_losses * bet / total_win;
+        let payment = self.losing_balance * bet / self.winning_balance + bet;
 
         // @CHECK subtract the deposits of the player so that they can't withdraw again
         // Should we keep a record of withdrawals? If so, we need a new struct to track it.
