@@ -10,6 +10,8 @@ pub struct Market {
     pub dao_account_id: AccountId,
     pub resolved: bool,
     pub published: bool,
+    pub losing_balance: Balance,
+    pub winning_balance: Balance,
     pub total_funds: Balance,
     pub winning_options_idx: u64,
     pub totals_by_options_idx: LookupMap<u64, Balance>,
