@@ -13,4 +13,16 @@ impl Market {
 
         self.published = true;
     }
+
+    /**
+     * Make sure that the market option proposal was created
+     * Then create an NEP141 token, MOT
+     */
+    #[private]
+    pub fn on_create_proposal_callback(&mut self, market_options_idx: u64) {
+        match env::promise_result(0) {
+            PromiseResult::Successful(_res) => {}
+            _ => env::panic_str("ERR_CREATE_PROPOSAL_UNSUCCESSFUL"),
+        }
+    }
 }

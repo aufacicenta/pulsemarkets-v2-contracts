@@ -52,7 +52,7 @@ impl Market {
 
     /**
      * Creates market options Sputnik2 DAO proposals
-     * Creates an NEP141 per each MOT
+     * Creates a MOT per each proposal
      *
      * The units of each MOT is 0 until each is minted on the presale
      * The initial price of each unit is set to: 1 / market_options_length
@@ -63,7 +63,17 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn publish_market(&mut self) -> Promise {}
+    pub fn publish_market(&mut self) {
+        if self.published {
+            env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");
+        }
+
+        if self.is_market_expired() {
+            env::panic_str("ERR_MARKET_EXPIRED");
+        }
+
+        self.create_market_options_proposals();
+    }
 
     /**
      * Mints units of MOT in exchange of the CT
@@ -159,6 +169,59 @@ impl Market {
      */
     #[payable]
     pub fn withdraw(&mut self) -> Promise {}
+}
 
-    fn get_market_option_token_price(&mut self) {}
+impl Market {
+    fn create_market_options_proposals(&self) {
+        let mut market_options_idx = 0;
+        let receiver_id = env::current_account_id().to_string();
+
+        for market_option in &self.market.options {
+            let args = Base64VecU8(
+                json!({ "market_options_idx": market_options_idx })
+                    .to_string()
+                    .into_bytes(),
+            );
+
+            let promise = Promise::new(self.dao_account_id.clone()).function_call(
+                "add_proposal".to_string(),
+                json!({
+                    "proposal": {
+                        "description": format!("{}:\n{}\nR: {}$$$$$$$$ProposeCustomFunctionCall",
+                            receiver_id,
+                            self.market.description,
+                            market_option),
+                        "kind": {
+                            "FunctionCall": {
+                                "receiver_id": receiver_id,
+                                "actions": [{
+                                    "args": args,
+                                    "deposit": "0", // @TODO
+                                    "gas": "150000000000000", // @TODO
+                                    "method_name": "resolve",
+                                }]
+                            }
+                        }
+                    }
+                })
+                .to_string()
+                .into_bytes(),
+                BALANCE_PROPOSAL_BOND,
+                GAS_CREATE_DAO_PROPOSAL,
+            );
+
+            let callback = Promise::new(env::current_account_id()).function_call(
+                "on_create_proposal_callback".to_string(),
+                json!({ "market_options_idx": market_options_idx })
+                    .to_string()
+                    .into_bytes(),
+                0,
+                GAS_CREATE_DAO_PROPOSAL_CALLBACK,
+            );
+
+            promise.then(callback);
+
+            market_options_idx += 1;
+        }
+    }
 }
