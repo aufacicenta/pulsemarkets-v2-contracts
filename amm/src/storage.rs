@@ -13,8 +13,7 @@ pub struct Market {
     pub market: MarketData,
     pub dao_account_id: AccountId,
     pub collateral_token_account_id: AccountId,
-    pub resolved: bool,
-    pub published: bool,
+    pub status: MarketStatus,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
 
@@ -29,6 +28,17 @@ pub struct Market {
      * May start at 0.1, but as the price gets closer to 1, we should reduce the ratio so that it never reaches 1
      */
     pub price_ratio: f64,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
+#[serde(crate = "near_sdk::serde")]
+pub enum MarketStatus {
+    Pending,
+    Published,
+    Open,
+    Paused,
+    Closed,
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]

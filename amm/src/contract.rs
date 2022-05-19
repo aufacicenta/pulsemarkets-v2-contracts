@@ -1,7 +1,7 @@
 use near_sdk::collections::LookupMap;
 use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise};
+use near_sdk::{env, near_bindgen, AccountId, Promise};
 use std::default::Default;
 
 use crate::consts::*;
@@ -40,8 +40,7 @@ impl Market {
             market,
             dao_account_id,
             collateral_token_account_id,
-            resolved: false,
-            published: false,
+            status: MarketStatus::Pending,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
             lp_fee,
             lp_balances: LookupMap::new(StorageKeys::LiquidityProviderBalances),
@@ -63,8 +62,8 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn publish_market(&mut self) {
-        if self.published {
+    pub fn publish(&mut self) {
+        if !matches!(self.status, MarketStatus::Pending) {
             env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");
         }
 
@@ -86,7 +85,7 @@ impl Market {
             outcome_id += 1;
         }
 
-        self.published = true;
+        self.status = MarketStatus::Published;
     }
 
     /**
@@ -94,7 +93,7 @@ impl Market {
      * CT balance belongs to the contract (the LP transfers the CT to the contract)
      *
      * OT balance is incremented in the corresponding LP pool, there's an LP pool per OT
-     * Each purchase increments the price of the selected OT by a predefined percentage, and
+     * Each purchase increments the price of the selected OT by a predefined ratio, and
      * decrements the price of the other OTs, SUM of PRICES MUST EQUAL 1!!
      *
      * Keep balance of the CT that the LP deposited
@@ -104,7 +103,7 @@ impl Market {
      * @notice while the market is open
      * @notice outcome_id must be between the length of market_options
      *
-     * @param outcome_id matches a Market Option created on publish_market
+     * @param outcome_id matches an Outcome created on publish
      *
      * @returns
      */
@@ -182,7 +181,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn withdraw(&mut self) -> Promise {}
+    pub fn redeem(&mut self) -> Promise {}
 }
 
 impl Market {
