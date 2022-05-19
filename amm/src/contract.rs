@@ -96,6 +96,7 @@ impl Market {
      * @returns
      */
     #[payable]
+    #[private]
     pub fn add_liquidity(
         &mut self,
         sender_id: AccountId,
@@ -138,6 +139,7 @@ impl Market {
      * @returns
      */
     #[payable]
+    #[private]
     pub fn buy(&mut self, sender_id: AccountId, amount: u128, payload: BuyArgs) -> Balance {
         self.assert_valid_outcome(payload.outcome_id);
         return 0;
