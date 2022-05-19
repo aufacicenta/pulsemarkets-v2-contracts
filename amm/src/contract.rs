@@ -63,12 +63,12 @@ impl Market {
      */
     #[payable]
     pub fn publish(&mut self) {
-        if !matches!(self.status, MarketStatus::Pending) {
+        if !self.is_pending() {
             env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");
         }
 
-        if self.is_market_expired() {
-            env::panic_str("ERR_MARKET_EXPIRED");
+        if self.is_open() {
+            env::panic_str("ERR_MARKET_IS_OPEN");
         }
 
         let mut outcome_id = 0;
@@ -108,7 +108,22 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn purchase_outcome_tokens(&mut self, outcome_id: OutcomeId) {}
+    pub fn purchase_outcome_tokens(&mut self, outcome_id: OutcomeId) {
+        if !self.is_published() {
+            env::panic_str("ERR_MARKET_NOT_PUBLISHED");
+        }
+
+        if self.is_open() {
+            env::panic_str("ERR_MARKET_IS_OPEN");
+        }
+
+        match self.outcome_tokens.get(&outcome_id) {
+            Some(token) => token.mint(&env::signer_account_id(), 3),
+            None => {
+                env::panic_str("ERR_WRONG_OUTCOME_ID");
+            }
+        }
+    }
 
     /**
      * Lets accounts purchase OTs from the OT LP pools balances in exchange of CT

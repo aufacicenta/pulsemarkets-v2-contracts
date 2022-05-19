@@ -36,9 +36,7 @@ pub struct Market {
 pub enum MarketStatus {
     Pending,
     Published,
-    Open,
-    Paused,
-    Closed,
+    Resolved,
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -65,6 +63,9 @@ pub struct MarketData {
     pub category: Option<String>,
     pub subcategory: Option<String>,
     pub options: Vec<String>,
-    pub expiration_date: u64,
+    // Datetime nanos: the market is open
+    pub start_datetime: u64,
+    // Datetime nanos: the market is closed
+    pub end_datetime: u64,
     pub resolution_window: u64,
 }

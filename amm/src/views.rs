@@ -26,19 +26,24 @@ impl Market {
     }
 
     pub fn is_published(&self) -> bool {
-        self.published
+        matches!(self.status, MarketStatus::Published)
+    }
+
+    pub fn is_pending(&self) -> bool {
+        matches!(self.status, MarketStatus::Pending)
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.market.start_datetime < env::block_timestamp().try_into().unwrap()
+            && self.market.end_datetime >= env::block_timestamp().try_into().unwrap()
     }
 
     pub fn is_resolved(&self) -> bool {
-        self.resolved
-    }
-
-    pub fn is_market_expired(&self) -> bool {
-        self.market.expiration_date < env::block_timestamp().try_into().unwrap()
+        matches!(self.status, MarketStatus::Resolved)
     }
 
     pub fn is_resolution_window_expired(&self) -> bool {
-        self.market.expiration_date + self.market.resolution_window
+        self.market.end_datetime + self.market.resolution_window
             < env::block_timestamp().try_into().unwrap()
     }
 }
