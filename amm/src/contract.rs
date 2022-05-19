@@ -17,9 +17,7 @@ impl Default for Market {
  * GLOSSARY
  *
  * Collateral Token, CT
- * Liquidity Provider, LP
- * Liquidity Provider Tokens, LPT
- * Market Option Token, MOT
+ * Liquidity Provider Token, LP
  *
  */
 #[near_bindgen]
@@ -27,10 +25,8 @@ impl Market {
     #[init]
     pub fn new(
         market: MarketData,
-        dao_account_id: AccountId,
-        collateral_token_account_id: AccountId,
-        lp_fee: f64,
-        price_ratio: f64,
+        collateral_token: AccountId,
+        fee: u64,
     ) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
@@ -38,18 +34,21 @@ impl Market {
 
         Self {
             market,
-            dao_account_id,
-            collateral_token_account_id,
-            resolved: false,
-            published: false,
-            lp_fee,
-            options_prices: LookupMap::new(StorageKeys::MarketOptionsPrices),
-            lp_balances: LookupMap::new(StorageKeys::LiquidityProviderBalances),
-            lp_pools_balances: LookupMap::new(StorageKeys::LiquidityProviderPoolsBalances),
-            price_ratio,
+            collateral_token,
+            status: MarketStatus::Pending,
+            fee,
+            liquidity_token: LiquidityToken {
+                balances: LookupMap::new(StorageKeys::LiquidityTokenBalances),
+                total_balance: 0
+            },
+            conditional_tokens: ConditionalTokens {
+                balances: LookupMap::new(StorageKeys::ConditionalTokensBalances),
+                total_balances: LookupMap::new(StorageKeys::ConditionalTokensTotalBalances),
+            },
         }
     }
 
+    
     /**
      * Creates market options Sputnik2 DAO proposals
      * Creates an NEP141 per each MOT
@@ -57,35 +56,76 @@ impl Market {
      * The units of each MOT is 0 until each is minted on the presale
      * The initial price of each unit is set to: 1 / market_options_length
      *
-     * @notice called by the MarketFactory contract only and only once
+     * @notice Should called by the MarketFactory contract only and only once
      * @notice publishes the market, does not mean it is open
      * @notice a market is open during the start_date and end_date period
      * @returns
      */
     #[payable]
-    pub fn publish_market(&mut self) -> Promise {}
+    pub fn publish(&mut self) -> Promise {
+        if self.status != MarketStatus::Pending {
+            env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");
+        }
 
-    /**
-     * Mints units of MOT in exchange of the CT
-     * CT balance belongs to the contract (the LP transfers the CT to the contract)
-     *
-     * MOT balance is incremented in the corresponding LP pool, there's an LP pool per MOT
-     * Each purchase increments the price of the selected MOT by a predefined percentage, and
-     * decrements the price of the other MOTs, SUM of PRICES MUST EQUAL 1!!
-     *
-     * Keep balance of the CT that the LP deposited
-     * Transfer LPTs to the buyer account_id as a reward
-     *
-     * @notice only after market is published, and
-     * @notice while the market is open
-     * @notice market_option_index must be between the length of market_options
-     *
-     * @param market_option_index matches a Market Option created on publish_market
-     *
-     * @returns
-     */
+        if self.is_market_expired() {
+            env::panic_str("ERR_MARKET_EXPIRED");
+        }
+
+        let mut promise: Promise = Promise::new(self.market.oracle.clone());
+
+        for market_option in 0 .. self.market.options {
+            let mut options = vec![0; self.market.options.into()];
+            options.insert(market_option.into(), 1);
+            
+            let args = Base64VecU8(
+                json!(options)
+                    .to_string()
+                    .into_bytes(),
+            );
+
+            promise = promise.function_call(
+                "add_proposal".to_string(),
+                json!({
+                    "proposal": {
+                        "description": format!("{}:\n{}\nR: {}$$$$$$$$ProposeCustomFunctionCall",
+                            env::current_account_id().to_string(),
+                            self.market.question_id,
+                            market_option),
+                        "kind": {
+                            "FunctionCall": {
+                                "receiver_id": env::current_account_id().to_string(),
+                                "actions": [{
+                                    "args": args,
+                                    "deposit": "0", // @TODO
+                                    "gas": "150000000000000", // @TODO
+                                    "method_name": "resolve",
+                                }]
+                            }
+                        }
+                    }
+                })
+                .to_string()
+                .into_bytes(),
+                BALANCE_PROPOSAL_BOND,
+                GAS_CREATE_DAO_PROPOSAL,
+            );
+        }
+
+        let callback = Promise::new(env::current_account_id()).function_call(
+            "on_create_proposals_callback".to_string(),
+            json!({}).to_string().into_bytes(),
+            0,
+            GAS_CREATE_DAO_PROPOSAL_CALLBACK,
+        );
+
+        promise.then(callback)
+    }
+
     #[payable]
-    pub fn purchase_market_option_tokens(&mut self, market_option_index: MarketOptionIndex) {}
+    pub fn add_liquidity(&mut self, market_option_index: MarketOptionIndex) {}
+
+    #[payable]
+    pub fn remove_liquidity(&mut self, market_option_index: MarketOptionIndex) {}
 
     /**
      * Lets accounts purchase MOTs from the MOT LP pools balances in exchange of CT
@@ -106,7 +146,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn bet(&mut self, market_option_index: MarketOptionIndex) -> Promise {}
+    pub fn buy(&mut self, market_option_index: MarketOptionIndex) {}
 
     /**
      * An account may drop their bet and get their CT back
@@ -126,7 +166,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn drop(&mut self, market_option_index: MarketOptionIndex, amount: u64) -> Promise {}
+    pub fn sell(&mut self, market_option_index: MarketOptionIndex, amount: u64) {}
 
     /**
      * Closes the market
@@ -139,7 +179,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn resolve(&mut self, market_option_index: MarketOptionIndex) -> Promise {}
+    pub fn resolve(&mut self, market_option_index: MarketOptionIndex) {}
 
     /**
      * Lets LPs and accounts redeem their CTs
@@ -158,7 +198,5 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn withdraw(&mut self) -> Promise {}
-
-    fn get_market_option_token_price(&mut self) {}
+    pub fn redeem(&mut self) {}
 }

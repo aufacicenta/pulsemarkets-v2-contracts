@@ -11,6 +11,6 @@ impl Market {
             _ => env::panic_str("ERR_CREATE_PROPOSALS_UNSUCCESSFUL"),
         }
 
-        self.published = true;
+        self.status = MarketStatus::Running;
     }
 }

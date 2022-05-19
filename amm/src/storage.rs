@@ -11,38 +11,49 @@ pub type Price = f64;
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Market {
     pub market: MarketData,
-    pub dao_account_id: AccountId,
-    pub collateral_token_account_id: AccountId,
-    pub resolved: bool,
-    pub published: bool,
-    // Keeps track of Market Options prices
-    pub options_prices: LookupMap<MarketOptionIndex, Price>,
-    // Keeps track of LP pools balance by MarketOptionIndex
-    pub lp_pools_balances: LookupMap<MarketOptionIndex, Balance>,
-    // Keeps track of LPs balance by MarketOptionIndex
-    pub lp_balances: LookupMap<LiquidityProvider, Balance>,
-    // Decimal fee to charge upon a bet
-    pub lp_fee: f64,
-    // Decimal to increase or decrease upon purchases, bets or drops
-    pub price_ratio: f64,
-}
-
-#[derive(BorshStorageKey, BorshSerialize)]
-pub enum StorageKeys {
-    MarketOptionsPrices,
-    LiquidityProviderBalances,
-    LiquidityProviderPoolsBalances,
+    pub collateral_token: AccountId,
+    pub status: MarketStatus,
+    pub fee: u64,
+    pub liquidity_token: LiquidityToken,
+    pub conditional_tokens: ConditionalTokens,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
 #[serde(crate = "near_sdk::serde")]
 pub struct MarketData {
-    pub description: String,
-    pub info: String,
-    pub category: Option<String>,
-    pub subcategory: Option<String>,
-    pub options: Vec<String>,
+    pub oracle: AccountId,
+    pub question_id: u64,
+    pub options: u8,
     pub expiration_date: u64,
     pub resolution_window: u64,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
+#[serde(crate = "near_sdk::serde")]
+pub enum MarketStatus {
+    Pending,
+    Running,
+    Paused,
+    Closed,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct LiquidityToken {
+    pub balances: LookupMap<AccountId, Balance>,
+    pub total_balance: Balance,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct ConditionalTokens {
+    pub balances: LookupMap<u64, LookupMap<AccountId, Balance>>,
+    pub total_balances: LookupMap<u64, Balance>,
+}
+
+#[derive(BorshStorageKey, BorshSerialize)]
+pub enum StorageKeys {
+    LiquidityTokenBalances,
+    ConditionalTokensBalances,
+    ConditionalTokensTotalBalances,
 }
