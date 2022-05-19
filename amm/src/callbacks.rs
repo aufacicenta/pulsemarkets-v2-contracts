@@ -10,8 +10,6 @@ impl Market {
             PromiseResult::Successful(_res) => {}
             _ => env::panic_str("ERR_CREATE_PROPOSALS_UNSUCCESSFUL"),
         }
-
-        self.published = true;
     }
 
     /**

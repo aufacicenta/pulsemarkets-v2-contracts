@@ -1,7 +1,7 @@
 use near_sdk::collections::LookupMap;
 use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
-use near_sdk::{env, near_bindgen, AccountId, Promise};
+use near_sdk::{env, near_bindgen, AccountId, Balance, Promise};
 use std::default::Default;
 
 use crate::consts::*;
@@ -30,7 +30,7 @@ impl Market {
         dao_account_id: AccountId,
         collateral_token_account_id: AccountId,
         lp_fee: f64,
-        price_ratio: f64,
+        price_ratio: PriceRatio,
     ) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
@@ -42,10 +42,8 @@ impl Market {
             collateral_token_account_id,
             status: MarketStatus::Pending,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
-            lp_fee,
-            lp_balances: LookupMap::new(StorageKeys::LiquidityProviderBalances),
-            lp_pools_balances: LookupMap::new(StorageKeys::LiquidityProviderPoolsBalances),
             price_ratio,
+            lp_fee,
         }
     }
 
@@ -63,25 +61,15 @@ impl Market {
      */
     #[payable]
     pub fn publish(&mut self) {
-        if !self.is_pending() {
-            env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");
-        }
-
-        if self.is_open() {
-            env::panic_str("ERR_MARKET_IS_OPEN");
-        }
+        self.assert_is_pending();
+        self.assert_is_closed();
 
         let mut outcome_id = 0;
+        let options = &self.market.options.clone();
 
-        for market_option in &self.market.options {
-            self.create_market_option_proposal(
-                env::current_account_id(),
-                outcome_id,
-                market_option,
-            );
-
+        for outcome in options {
+            self.create_outcome_proposal(env::current_account_id(), outcome_id, &outcome);
             self.create_outcome_token(outcome_id);
-
             outcome_id += 1;
         }
 
@@ -101,24 +89,30 @@ impl Market {
      *
      * @notice only after market is published, and
      * @notice while the market is open
-     * @notice outcome_id must be between the length of market_options
+     * @notice outcome_id must be between the length of outcomes
      *
      * @param outcome_id matches an Outcome created on publish
      *
      * @returns
      */
     #[payable]
-    pub fn purchase_outcome_tokens(&mut self, outcome_id: OutcomeId) {
-        if !self.is_published() {
-            env::panic_str("ERR_MARKET_NOT_PUBLISHED");
-        }
+    pub fn add_liquidity(
+        &mut self,
+        sender_id: AccountId,
+        amount: u128,
+        payload: AddLiquidityArgs,
+    ) -> Balance {
+        self.assert_is_published();
+        self.assert_is_closed();
+        self.assert_valid_outcome(payload.outcome_id);
 
-        if self.is_open() {
-            env::panic_str("ERR_MARKET_IS_OPEN");
-        }
-
-        match self.outcome_tokens.get(&outcome_id) {
-            Some(token) => token.mint(&env::signer_account_id(), 3),
+        match self.outcome_tokens.get(&payload.outcome_id) {
+            Some(token) => {
+                let mut outcome_token = token;
+                outcome_token.mint(&sender_id, amount);
+                self.update_outcome_tokens_prices(payload.outcome_id);
+                return outcome_token.total_supply();
+            }
             None => {
                 env::panic_str("ERR_WRONG_OUTCOME_ID");
             }
@@ -144,7 +138,10 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn bet(&mut self, outcome_id: OutcomeId) -> Promise {}
+    pub fn buy(&mut self, sender_id: AccountId, amount: u128, payload: BuyArgs) -> Balance {
+        self.assert_valid_outcome(payload.outcome_id);
+        return 0;
+    }
 
     /**
      * An account may drop their bet and get their CT back
@@ -164,7 +161,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn drop(&mut self, outcome_id: OutcomeId, amount: u64) -> Promise {}
+    pub fn drop(&mut self, outcome_id: OutcomeId, amount: u64) {}
 
     /**
      * Closes the market
@@ -177,7 +174,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn resolve(&mut self, outcome_id: OutcomeId) -> Promise {}
+    pub fn resolve(&mut self, outcome_id: OutcomeId) {}
 
     /**
      * Lets LPs and accounts redeem their CTs
@@ -196,15 +193,15 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn redeem(&mut self) -> Promise {}
+    pub fn redeem(&mut self) {}
 }
 
 impl Market {
-    fn create_market_option_proposal(
+    fn create_outcome_proposal(
         &self,
         receiver_id: AccountId,
         outcome_id: OutcomeId,
-        market_option: &String,
+        outcome: &String,
     ) {
         let args = Base64VecU8(json!({ "outcome_id": outcome_id }).to_string().into_bytes());
 
@@ -215,7 +212,7 @@ impl Market {
                     "description": format!("{}:\n{}\nR: {}$$$$$$$$ProposeCustomFunctionCall",
                         receiver_id,
                         self.market.description,
-                        market_option),
+                        outcome),
                     "kind": {
                         "FunctionCall": {
                             "receiver_id": receiver_id,
@@ -244,5 +241,27 @@ impl Market {
 
     fn get_initial_outcome_token_price(&self) -> Price {
         1 as Price / self.market.options.len() as Price
+    }
+
+    fn update_outcome_tokens_prices(&self, outcome_id: OutcomeId) {
+        let mut k: Price = 0.0;
+
+        for id in 0..self.market.options.len() {
+            match self.outcome_tokens.get(&(id as OutcomeId)) {
+                Some(token) => {
+                    let mut outcome_token = token;
+                    if outcome_token.outcome_id == outcome_id {
+                        outcome_token.increase_price(self.price_ratio);
+                    } else {
+                        outcome_token.decrease_price(self.price_ratio);
+                    }
+
+                    k += outcome_token.get_price();
+                }
+                None => {}
+            }
+        }
+
+        assert_eq!(k, 1.0, "ERR_PRICE_CONSTANT_SHOULD_EQ_1");
     }
 }

@@ -1,6 +1,6 @@
 use near_sdk::{collections::LookupMap, env, AccountId, Balance};
 
-use crate::storage::{OutcomeId, OutcomeToken, Price};
+use crate::storage::{OutcomeId, OutcomeToken, Price, PriceRatio, WrappedBalance};
 
 impl Default for OutcomeToken {
     fn default() -> Self {
@@ -27,6 +27,26 @@ impl OutcomeToken {
             outcome_id,
             price,
         }
+    }
+
+    /**
+     * @notice mint specific amount of tokens for an account
+     * @param account_id the account_id to mint tokens for
+     * @param amount the amount of tokens to mint
+     */
+    pub fn increase_price(&mut self, price_ratio: PriceRatio) {
+        // @TODO self.price_ratio may be updated so that it doesn't reach 1
+        self.price = self.price + price_ratio;
+    }
+
+    /**
+     * @notice mint specific amount of tokens for an account
+     * @param account_id the account_id to mint tokens for
+     * @param amount the amount of tokens to mint
+     */
+    pub fn decrease_price(&mut self, price_ratio: PriceRatio) {
+        // @TODO self.price_ratio may be updated so that it doesn't reach 1
+        self.price = self.price - price_ratio;
     }
 
     /**
@@ -63,6 +83,15 @@ impl OutcomeToken {
      */
     pub fn get_balance(&self, account_id: &AccountId) -> Balance {
         self.accounts.get(account_id).unwrap_or(0)
+    }
+
+    /**
+     * @notice returns account's balance
+     * @param account_id is the account_id to return the balance of
+     * @returns `accoun_id`s balance
+     */
+    pub fn get_price(&self) -> Price {
+        self.price
     }
 
     /**
