@@ -1,11 +1,51 @@
-use near_sdk::collections::LookupMap;
-use near_sdk::json_types::Base64VecU8;
+use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+use near_sdk::collections::{LazyOption, LookupMap};
+use near_sdk::json_types::{Base64VecU8, U128};
+use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise};
+use near_sdk::{env, near_bindgen, AccountId, Promise, PromiseOrValue};
+
+use near_contract_standards::fungible_token::metadata::{
+    FungibleTokenMetadata, FungibleTokenMetadataProvider,
+};
+use near_contract_standards::fungible_token::FungibleToken;
 use std::default::Default;
 
 use crate::consts::*;
-use crate::storage::*;
+use crate::conditional_tokens::*;
+
+#[near_bindgen]
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Market {
+    pub market: MarketData,
+    pub collateral_token: AccountId,
+    pub status: MarketStatus,
+    pub fee: u64,
+    pub conditional_tokens: ConditionalTokens,
+    pub liquidity_token: FungibleToken,
+    pub metadata: LazyOption<FungibleTokenMetadata>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
+#[serde(crate = "near_sdk::serde")]
+pub struct MarketData {
+    pub oracle: AccountId,
+    pub question_id: u64,
+    pub options: u8,
+    pub expiration_date: u64,
+    pub resolution_window: u64,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
+#[serde(crate = "near_sdk::serde")]
+pub enum MarketStatus {
+    Pending,
+    Running,
+    Paused,
+    Closed,
+}
 
 impl Default for Market {
     fn default() -> Self {
@@ -18,6 +58,7 @@ impl Default for Market {
  *
  * Collateral Token, CT
  * Liquidity Provider Token, LP
+ * Conditional Tokens, CT
  *
  */
 #[near_bindgen]
@@ -37,14 +78,12 @@ impl Market {
             collateral_token,
             status: MarketStatus::Pending,
             fee,
-            liquidity_token: LiquidityToken {
-                balances: LookupMap::new(StorageKeys::LiquidityTokenBalances),
-                total_balance: 0
-            },
             conditional_tokens: ConditionalTokens {
-                balances: LookupMap::new(StorageKeys::ConditionalTokensBalances),
+                tokens: LookupMap::new(StorageKeys::ConditionalTokensBalances),
                 total_balances: LookupMap::new(StorageKeys::ConditionalTokensTotalBalances),
             },
+            liquidity_token: FungibleToken::new(b"a".to_vec()),
+            metadata: LazyOption::new(b"m".to_vec(), None),
         }
     }
 
@@ -121,11 +160,64 @@ impl Market {
         promise.then(callback)
     }
 
-    #[payable]
-    pub fn add_liquidity(&mut self, market_option_index: MarketOptionIndex) {}
+    fn add_liquidity_through_all_options(&mut self, amount: u128) {
+        for market_option in 0 .. self.market.options {
+            self.conditional_tokens.mint(market_option as u64, env::current_account_id(), amount);
+        }
+    }
 
     #[payable]
-    pub fn remove_liquidity(&mut self, market_option_index: MarketOptionIndex) {}
+    pub fn add_liquidity(&mut self) {
+        if self.status != MarketStatus::Running {
+            env::panic_str("ERR_MARKET_IS_NOT_RUNNING");
+        }
+
+        if self.is_market_expired() {
+            env::panic_str("ERR_MARKET_EXPIRED");
+        }
+
+        if env::attached_deposit() == 0 {
+            env::panic_str("ERR_DEPOSIT_SHOULD_NOT_BE_0");
+        }
+
+        let amount = env::attached_deposit();
+        let lp_total_supply = self.liquidity_token.total_supply;
+        let mut mint_amount = amount;
+        let mut send_back = Vec::new();
+
+        if lp_total_supply > 0 {
+            // Getting the max Pool Weight
+            let mut pool_weight = 0;
+            for market_option in 0 .. self.market.options {
+                let balance = self.conditional_tokens.get_balance_by_token_idx(&(market_option as u64));
+                if pool_weight < balance {
+                    pool_weight = balance;
+                }
+            }
+
+            // Calculate LP to Mint and SendBacks
+            for market_option in 0 .. self.market.options {
+                let balance = self.conditional_tokens.get_balance_by_token_idx(&(market_option as u64));
+                let remaining = amount * balance / balance;
+                send_back.push(balance - remaining);
+            }
+
+            mint_amount = amount * lp_total_supply / pool_weight;
+        }
+
+        // Mint Liquidity Tokens
+        self.liquidity_token.internal_register_account(&env::signer_account_id());
+        self.liquidity_token.internal_deposit(&env::signer_account_id(), mint_amount);
+
+        // Mint Conditional Tokens
+        self.add_liquidity_through_all_options(amount);
+
+        // Send BackTokens
+        self.conditional_tokens.transfer_batch(env::current_account_id(), env::signer_account_id(), vec![0; self.market.options.into()], send_back);
+    }
+
+    #[payable]
+    pub fn remove_liquidity(&mut self) {}
 
     /**
      * Lets accounts purchase MOTs from the MOT LP pools balances in exchange of CT
@@ -146,7 +238,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn buy(&mut self, market_option_index: MarketOptionIndex) {}
+    pub fn buy(&mut self) {}
 
     /**
      * An account may drop their bet and get their CT back
@@ -166,7 +258,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn sell(&mut self, market_option_index: MarketOptionIndex, amount: u64) {}
+    pub fn sell(&mut self) {}
 
     /**
      * Closes the market
@@ -179,7 +271,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn resolve(&mut self, market_option_index: MarketOptionIndex) {}
+    pub fn resolve(&mut self) {}
 
     /**
      * Lets LPs and accounts redeem their CTs
@@ -199,4 +291,14 @@ impl Market {
      */
     #[payable]
     pub fn redeem(&mut self) {}
+}
+
+near_contract_standards::impl_fungible_token_core!(Market, liquidity_token);
+near_contract_standards::impl_fungible_token_storage!(Market, liquidity_token);
+
+#[near_bindgen]
+impl FungibleTokenMetadataProvider for Market {
+    fn ft_metadata(&self) -> FungibleTokenMetadata {
+        self.metadata.get().unwrap()
+    }
 }

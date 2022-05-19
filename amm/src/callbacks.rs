@@ -1,6 +1,6 @@
 use near_sdk::{env, near_bindgen, PromiseResult};
 
-use crate::storage::*;
+use crate::market::*;
 
 #[near_bindgen]
 impl Market {

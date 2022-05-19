@@ -1,6 +1,3 @@
-pub mod storage;
-pub use storage::*;
-
 pub mod consts;
 pub use consts::*;
 
@@ -10,8 +7,11 @@ pub use callbacks::*;
 pub mod views;
 pub use views::*;
 
-pub mod contract;
-pub use contract::*;
+pub mod market;
+pub use market::*;
+
+pub mod conditional_tokens;
+pub use conditional_tokens::*;
 
 pub mod tests;
 pub use tests::*;
