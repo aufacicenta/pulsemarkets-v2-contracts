@@ -37,8 +37,7 @@ pub struct MarketData {
     pub resolution_window: u64,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, Eq)]
-#[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 #[serde(crate = "near_sdk::serde")]
 pub enum MarketStatus {
     Pending,
