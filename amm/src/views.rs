@@ -1,7 +1,8 @@
 use near_sdk::{env, near_bindgen};
 
-use crate::market::*;
 use crate::consts::*;
+use crate::market::*;
+use crate::math;
 
 #[near_bindgen]
 impl Market {
@@ -29,9 +30,8 @@ impl Market {
             let balance = self.conditional_tokens.get_balance_by_token_idx(&(i as u64));
 
             if i as u64 != outcome_idx {
-                let k = buy_token_pool_balance.wrapping_div(ONE).wrapping_mul(balance.wrapping_div(ONE));
-                let new_outcome_balance = (balance + investment_amount).wrapping_div(ONE);
-                ending_outcome_balance = k.wrapping_div(new_outcome_balance).wrapping_mul(ONE);
+                let k = math::complex_mul_u128(ONE, ending_outcome_balance, balance);
+                ending_outcome_balance = math::complex_div_u128(ONE, k, balance + investment_amount);
             }
         }
 

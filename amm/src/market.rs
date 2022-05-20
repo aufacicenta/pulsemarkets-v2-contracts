@@ -13,6 +13,7 @@ use std::default::Default;
 
 use crate::consts::*;
 use crate::conditional_tokens::*;
+use crate::math;
 
 #[near_bindgen]
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -197,11 +198,11 @@ impl Market {
             // Calculate LP to Mint and SendBacks
             for market_option in 0 .. self.market.options {
                 let balance = self.conditional_tokens.get_balance_by_token_idx(&(market_option as u64));
-                let remaining = balance / pool_weight * amount;
+                let remaining = math::complex_div_u128(ONE, math::complex_mul_u128(ONE, balance, amount), pool_weight);
                 send_back.push(amount - remaining);
             }
 
-            mint_amount = lp_total_supply / pool_weight * amount;
+            mint_amount = math::complex_div_u128(ONE, math::complex_mul_u128(ONE, lp_total_supply, amount), pool_weight);
         }
 
         // Mint Liquidity Tokens
@@ -222,24 +223,6 @@ impl Market {
     #[payable]
     pub fn remove_liquidity(&mut self) {}
 
-    /**
-     * Lets accounts purchase MOTs from the MOT LP pools balances in exchange of CT
-     * The price is calculated at the time of betting
-     *
-     * Increments the price of the selected MOT by the predefined percentage
-     * Decrements the price of the other MOTs by the predefined percentage
-     * SUM of PRICES MUST EQUAL 1!!
-     *
-     * Increments the balance of MOT in the buyer's balance
-     * Decrements the balance of MOT in the MOT LP pool balance
-     *
-     * Charges lp_fee from the CT and transfers it to the MOT LP Pool fee balance
-     * LPs can withdraw the fees at any time using their LPTs
-     *
-     * @notice only while the market is open
-     *
-     * @returns
-     */
     #[payable]
     pub fn buy(&mut self) {}
 

@@ -10,6 +10,8 @@ pub use views::*;
 pub mod market;
 pub use market::*;
 
+pub mod math;
+
 pub mod conditional_tokens;
 pub use conditional_tokens::*;
 
