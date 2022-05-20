@@ -37,7 +37,7 @@ pub struct MarketData {
     pub resolution_window: u64,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, Eq)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
 #[serde(crate = "near_sdk::serde")]
 pub enum MarketStatus {
@@ -198,22 +198,26 @@ impl Market {
             // Calculate LP to Mint and SendBacks
             for market_option in 0 .. self.market.options {
                 let balance = self.conditional_tokens.get_balance_by_token_idx(&(market_option as u64));
-                let remaining = amount * balance / balance;
-                send_back.push(balance - remaining);
+                let remaining = balance / pool_weight * amount;
+                send_back.push(amount - remaining);
             }
 
-            mint_amount = amount * lp_total_supply / pool_weight;
+            mint_amount = lp_total_supply / pool_weight * amount;
         }
 
         // Mint Liquidity Tokens
-        self.liquidity_token.internal_register_account(&env::signer_account_id());
+        if !self.liquidity_token.accounts.get(&env::signer_account_id()).is_some() {
+            self.liquidity_token.internal_register_account(&env::signer_account_id());
+        }
         self.liquidity_token.internal_deposit(&env::signer_account_id(), mint_amount);
 
         // Mint Conditional Tokens
         self.add_liquidity_through_all_options(amount);
 
         // Send BackTokens
-        self.conditional_tokens.transfer_batch(env::current_account_id(), env::signer_account_id(), vec![0; self.market.options.into()], send_back);
+        if send_back.len() > 0 {
+            self.conditional_tokens.transfer_batch(env::current_account_id(), env::signer_account_id(), vec![0; self.market.options.into()], send_back);
+        }
     }
 
     #[payable]

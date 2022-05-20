@@ -17,7 +17,7 @@ pub enum StorageKeys {
 
 impl ConditionalTokens {
 
-    pub fn mint(&mut self, token_idx: u64, account: AccountId, amount: Balance) { 
+    pub fn mint(&mut self, token_idx: u64, account: AccountId, amount: Balance) {
         let mut token = self.get_token(&token_idx);
         
         // Update Account Balance
@@ -38,7 +38,7 @@ impl ConditionalTokens {
         self.total_balances.insert(&token_idx, &balance_by_token);
     }
 
-    pub fn transfer(&mut self, token_idx: u64, from: AccountId, to: AccountId, amount: Balance) { 
+    pub fn transfer(&mut self, token_idx: u64, from: AccountId, to: AccountId, amount: Balance) {
         let mut token = self.get_token(&token_idx);
 
         // Get Tokens From
@@ -63,7 +63,7 @@ impl ConditionalTokens {
 
     pub fn transfer_batch(&mut self, from: AccountId, to: AccountId, token_idx: Vec<u64>, amount: Vec<Balance>) {
         if token_idx.len() != amount.len(){
-            env::panic_str("ERR_MARKET_IS_NOT_RUNNING");
+            env::panic_str("ERR_SAME_LEN");
         }
 
         let idxs = token_idx.len();
@@ -87,6 +87,16 @@ impl ConditionalTokens {
     pub fn get_balance_by_token_idx(&self, token_idx: &u64) -> Balance {
         match self.total_balances.get(token_idx) {
             Some(balance) => balance,
+            None => 0,
+        }
+    }
+
+    pub fn get_balance_by_account(&self, token_idx: &u64, account: &AccountId) -> Balance {
+        match self.tokens.get(token_idx) {
+            Some(token) => match token.get(account) {
+                Some(balance) => balance,
+                None => 0,
+            },
             None => 0,
         }
     }
