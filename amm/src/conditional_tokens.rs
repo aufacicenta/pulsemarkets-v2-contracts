@@ -100,4 +100,13 @@ impl ConditionalTokens {
             None => 0,
         }
     }
+
+    pub fn get_balances(&self, outcomes_amount: u64) -> Vec<Balance>{
+        let mut balances = Vec::new();
+        for i in 0 .. outcomes_amount {
+            let balance = self.get_balance_by_token_idx(&i);
+            balances.push(balance);
+        }
+        balances
+    }
 }

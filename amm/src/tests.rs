@@ -329,7 +329,7 @@ mod tests {
         assert_eq!(0, contract.ft_balance_of(carol()).0);
         assert_eq!(0, contract.ft_balance_of(contract_account.clone()).0);
 
-        // ##################
+        // ####################
         // Alice adds liquidity
         testing_env!(context
             .signer_account_id(alice())
@@ -353,7 +353,7 @@ mod tests {
         assert_eq!(ONE_NEAR * 3, contract.ft_balance_of(alice()).0);
         assert_eq!(0, contract.ft_balance_of(carol()).0);
 
-        // ##################
+        // ########################
         // Bob adds liquidity again
         testing_env!(context
             .signer_account_id(bob())
@@ -465,5 +465,66 @@ mod tests {
         assert_eq!(0, contract.ft_balance_of(contract_account.clone()).0);
 
         assert_eq!(ONE_NEAR * 15, contract.calc_buy_amount(ONE_NEAR * 10, 1));
+    }
+
+    #[test]
+    fn test_get_balances() {
+        let mut context = setup_context();
+        let expires_at = add_expires_at_nanos(100);
+        let contract_account = AccountId::new_unchecked("amm.near".to_string());
+        let outcomes = 2;
+
+        testing_env!(context
+            .current_account_id(contract_account.clone())
+            .build());
+
+        let mut contract = Market::new(
+            create_marketdata(outcomes, expires_at, 100),
+            AccountId::new_unchecked(alice().to_string()),
+            10
+        );
+
+        contract.publish();
+
+        testing_env!(
+            context.build(),
+            near_sdk::VMConfig::test(),
+            near_sdk::RuntimeFeesConfig::test(),
+            Default::default(),
+            vec![ PromiseResult::Successful(vec![]) ],
+        );
+
+        contract.on_create_proposals_callback();
+
+        assert_eq!(
+            vec![0, 0],
+            contract.conditional_tokens.get_balances(outcomes as u64)
+        );
+
+        // Bob adds liquidity
+        testing_env!(context
+            .signer_account_id(bob())
+            .attached_deposit(ONE_NEAR)
+            .build());
+
+        contract.add_liquidity();
+
+        assert_eq!(
+            vec![ONE_NEAR, ONE_NEAR],
+            contract.conditional_tokens.get_balances(outcomes as u64)
+        );
+
+        // Alice adds liquidity
+        testing_env!(context
+            .signer_account_id(alice())
+            .attached_deposit(ONE_NEAR * 2)
+            .build());
+
+        contract.add_liquidity();
+
+        assert_eq!(
+            vec![ONE_NEAR * 3, ONE_NEAR * 3],
+            contract.conditional_tokens.get_balances(outcomes as u64)
+        );
     }
 }
