@@ -224,25 +224,36 @@ impl Market {
     pub fn remove_liquidity(&mut self) {}
 
     #[payable]
-    pub fn buy(&mut self) {}
+    pub fn buy(&mut self, outcome_idx: u64, min_outcome_tokens_to_buy: u128) {
+        if self.status != MarketStatus::Running {
+            env::panic_str("ERR_MARKET_IS_NOT_RUNNING");
+        }
 
-    /**
-     * An account may drop their bet and get their CT back
-     * No lp_fee is charged on this transaction
-     *
-     * Transfers CT amount to the account if their MOT amount <= balance
-     *
-     * Decrements the price of the selected MOT by the predefined percentage
-     * Increments the price of the other MOTs by the predefined percentage
-     * SUM of PRICES MUST EQUAL 1!!
-     *
-     * Decrements the balance of MOT in the account's balance
-     * Increments the balance of MOT in the MOT LP pool balance
-     *
-     * @notice only while the market is open
-     *
-     * @returns
-     */
+        if self.is_market_expired() {
+            env::panic_str("ERR_MARKET_EXPIRED");
+        }
+
+        if env::attached_deposit() == 0 {
+            env::panic_str("ERR_DEPOSIT_SHOULD_NOT_BE_0");
+        }
+
+        let investment_amount = env::attached_deposit();
+        let outcome_tokens_to_buy = self.calc_buy_amount(investment_amount, outcome_idx);
+
+        if outcome_tokens_to_buy < min_outcome_tokens_to_buy {
+            env::panic_str("ERR_minimum_buy_amount_not_reached");
+        }
+
+        //@TODO Send collateral token to the market
+        //@TODO Calculate fees
+
+        // Mint Conditional Tokens
+        self.add_liquidity_through_all_options(investment_amount);
+
+        // Tranfer Conditional Token
+        self.conditional_tokens.transfer(outcome_idx, env::current_account_id(), env::signer_account_id(), outcome_tokens_to_buy);
+    }
+
     #[payable]
     pub fn sell(&mut self) {}
 

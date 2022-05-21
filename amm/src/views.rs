@@ -24,10 +24,10 @@ impl Market {
     }
 
     pub fn calc_buy_amount(&self, investment_amount: u128, outcome_idx: u64) -> u128 {
-        let buy_token_pool_balance = self.conditional_tokens.get_balance_by_token_idx(&outcome_idx);
+        let buy_token_pool_balance = self.conditional_tokens.get_balance_by_account(&outcome_idx, &env::current_account_id());
         let mut ending_outcome_balance = buy_token_pool_balance.clone();
         for i in 0 .. self.market.options {
-            let balance = self.conditional_tokens.get_balance_by_token_idx(&(i as u64));
+            let balance = self.conditional_tokens.get_balance_by_account(&(i as u64), &env::current_account_id());
 
             if i as u64 != outcome_idx {
                 let k = math::complex_mul_u128(ONE, ending_outcome_balance, balance);
