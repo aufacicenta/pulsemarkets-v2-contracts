@@ -21,21 +21,40 @@ impl ConditionalTokens {
         let mut token = self.get_token(&token_idx);
         
         // Update Account Balance
-        let mut balance_by_account = match token.get(&account) {
-            Some(balance) => balance,
-            None => 0,
-        };
-        balance_by_account = balance_by_account.wrapping_add(amount);
-        token.insert(&account, &balance_by_account);
+        let mut account_balance = self.get_balance_by_account(&token_idx, &account);
+        account_balance = account_balance.wrapping_add(amount);
+        token.insert(&account, &account_balance);
         self.tokens.insert(&token_idx, &token);
 
         // Update Token Balance
-        let mut balance_by_token = match self.total_balances.get(&token_idx) {
-            Some(balance) => balance,
-            None => 0,
-        };
-        balance_by_token = balance_by_token.wrapping_add(amount);
-        self.total_balances.insert(&token_idx, &balance_by_token);
+        let mut token_balance = self.get_balance_by_token_idx(&token_idx);
+        token_balance = token_balance.wrapping_add(amount);
+        self.total_balances.insert(&token_idx, &token_balance);
+    }
+
+    pub fn burn(&mut self, token_idx: u64, account: AccountId, amount: Balance) {
+        let mut token = self.get_token(&token_idx);
+        
+        // Update Account Balance
+        let mut account_balance = self.get_balance_by_account(&token_idx, &account);
+
+        if amount > account_balance {
+            env::panic_str("ERR_NOT_ENOUGH__ACCOUNT_BALANCE");
+        }
+
+        account_balance = account_balance.wrapping_sub(amount);
+        token.insert(&account, &account_balance);
+        self.tokens.insert(&token_idx, &token);
+
+        // Update Token Balance
+        let mut token_balance = self.get_balance_by_token_idx(&token_idx);
+
+        if amount > token_balance {
+            env::panic_str("ERR_NOT_ENOUGH__ACCOUNT_BALANCE");
+        }
+
+        token_balance = token_balance.wrapping_sub(amount);
+        self.total_balances.insert(&token_idx, &token_balance);
     }
 
     pub fn transfer(&mut self, token_idx: u64, from: AccountId, to: AccountId, amount: Balance) {
@@ -53,7 +72,10 @@ impl ConditionalTokens {
             None => 0,
         };
 
-        //@TODO Check Balances
+        if amount > from_balance {
+            env::panic_str("ERR_NOT_ENOUGH_BALANCE");
+        }
+
         // Update Balances
         token.insert(&from, &from_balance.wrapping_sub(amount));
         token.insert(&to, &to_balance.wrapping_add(amount));

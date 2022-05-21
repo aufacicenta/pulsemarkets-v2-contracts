@@ -160,9 +160,15 @@ impl Market {
         promise.then(callback)
     }
 
-    fn add_liquidity_through_all_options(&mut self, amount: u128) {
-        for market_option in 0 .. self.market.options {
-            self.conditional_tokens.mint(market_option as u64, env::current_account_id(), amount);
+    fn mint_through_all_outcomes(&mut self, amount: u128) {
+        for outcome_idx in 0 .. self.market.options {
+            self.conditional_tokens.mint(outcome_idx as u64, env::current_account_id(), amount);
+        }
+    }
+
+    fn burn_through_all_outcomes(&mut self, amount: u128) {
+        for outcome_idx in 0 .. self.market.options {
+            self.conditional_tokens.burn(outcome_idx as u64, env::current_account_id(), amount);
         }
     }
 
@@ -212,7 +218,7 @@ impl Market {
         self.liquidity_token.internal_deposit(&env::signer_account_id(), mint_amount);
 
         // Mint Conditional Tokens
-        self.add_liquidity_through_all_options(amount);
+        self.mint_through_all_outcomes(amount);
 
         // Send BackTokens
         if send_back.len() > 0 {
@@ -248,14 +254,43 @@ impl Market {
         //@TODO Calculate fees
 
         // Mint Conditional Tokens
-        self.add_liquidity_through_all_options(investment_amount);
+        self.mint_through_all_outcomes(investment_amount);
 
         // Tranfer Conditional Token
         self.conditional_tokens.transfer(outcome_idx, env::current_account_id(), env::signer_account_id(), outcome_tokens_to_buy);
     }
 
     #[payable]
-    pub fn sell(&mut self) {}
+    pub fn sell(&mut self, return_amount: u128, outcome_idx: u64, max_outcome_tokens_to_sell: u128) {
+        if self.status != MarketStatus::Running {
+            env::panic_str("ERR_MARKET_IS_NOT_RUNNING");
+        }
+
+        if self.is_market_expired() {
+            env::panic_str("ERR_MARKET_EXPIRED");
+        }
+
+        if return_amount == 0 {
+            env::panic_str("ERR_DEPOSIT_SHOULD_NOT_BE_0");
+        }
+
+        let outcome_tokens_to_sell = self.calc_sell_amount(return_amount, outcome_idx);
+
+        if outcome_tokens_to_sell > max_outcome_tokens_to_sell {
+            env::panic_str("ERR_maximum_sell_amount_exceeded");
+        }
+
+        // Tranfer Conditional Token from the signer to the Pool
+        self.conditional_tokens.transfer(outcome_idx, env::signer_account_id(), env::current_account_id(), outcome_tokens_to_sell);
+
+        //@TODO Calculate fees
+
+        // Burn Conditional Tokens from the Pool
+        self.burn_through_all_outcomes(return_amount);
+
+        // Return Collateral Token
+        Promise::new(env::signer_account_id()).transfer(return_amount);
+    }
 
     /**
      * Closes the market
