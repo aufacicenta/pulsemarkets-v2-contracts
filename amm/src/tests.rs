@@ -450,22 +450,65 @@ mod tests {
 
         contract.add_liquidity();
 
-        // Checking Collateral Tokens Balance
-        assert_eq!(ONE_NEAR * 10, contract.conditional_tokens.get_balance_by_token_idx(&0));
-        assert_eq!(ONE_NEAR * 10, contract.conditional_tokens.get_balance_by_token_idx(&1));
-        assert_eq!(0, contract.conditional_tokens.get_balance_by_token_idx(&2));
+        assert_eq!(ONE_NEAR * 15, contract.calc_buy_amount(ONE_NEAR * 10, 1));
+    }
 
-        // Checking Collateral Tokens Accounts
-        assert_eq!(ONE_NEAR * 10, contract.conditional_tokens.get_balance_by_account(&0, &contract_account.clone()));
-        assert_eq!(ONE_NEAR * 10, contract.conditional_tokens.get_balance_by_account(&1, &contract_account.clone()));
-        assert_eq!(0, contract.conditional_tokens.get_balance_by_account(&1, &bob()));
+    #[test]
+    fn test_calc_sell_amount() {
+        let mut context = setup_context();
+        let expires_at = add_expires_at_nanos(100);
+        let contract_account = AccountId::new_unchecked("amm.near".to_string());
 
-        // Checking Liquidity Tokens
-        assert_eq!(ONE_NEAR * 10, contract.ft_balance_of(bob()).0);
-        assert_eq!(0, contract.ft_balance_of(carol()).0);
-        assert_eq!(0, contract.ft_balance_of(contract_account.clone()).0);
+
+        testing_env!(context
+            .current_account_id(contract_account.clone())
+            .build());
+
+        let mut contract = Market::new(
+            create_marketdata(2, expires_at, 100),
+            AccountId::new_unchecked(alice().to_string()),
+            10
+        );
+
+        contract.publish();
+
+        testing_env!(
+            context.build(),
+            near_sdk::VMConfig::test(),
+            near_sdk::RuntimeFeesConfig::test(),
+            Default::default(),
+            vec![ PromiseResult::Successful(vec![]) ],
+        );
+
+        contract.on_create_proposals_callback();
+
+        assert_eq!(
+            MarketStatus::Running,
+            contract.get_status()
+        );
+
+        // ##################
+        // Bob adds liquidity
+        testing_env!(context
+            .signer_account_id(bob())
+            .attached_deposit(ONE_NEAR * 10)
+            .build());
+
+        contract.add_liquidity();
 
         assert_eq!(ONE_NEAR * 15, contract.calc_buy_amount(ONE_NEAR * 10, 1));
+
+        // #####
+        // Alice Buys the outcome 1 with 10 as collateral
+        testing_env!(context
+            .signer_account_id(alice())
+            .attached_deposit(ONE_NEAR * 10)
+            .build());
+
+        contract.buy(1, 0);
+
+        assert_eq!(ONE_NEAR * 15, contract.calc_sell_amount(ONE_NEAR * 10, 1));
+        assert_eq!(6666666666666666666666667, contract.calc_sell_amount(ONE_NEAR * 5, 1));
     }
 
     #[test]
