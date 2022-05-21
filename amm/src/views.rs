@@ -73,4 +73,24 @@ impl Market {
 
         retire_amount + ending_outcome_balance - sell_token_pool_balance
     }
+
+    pub fn calc_outcome_price(&self, outcome_idx: u64) -> u128 {
+        if outcome_idx >= self.market.options as u64 {
+            env::panic_str("ERR_OUTCOME_IDX");
+        }
+
+        let mut total_pools_balance = 0;
+        let mut outcome_balance = 0;
+        for i in 0 .. self.market.options {
+            let pool_balance = self.conditional_tokens.get_balance_by_account(&(i as u64), &env::current_account_id());
+
+            total_pools_balance += pool_balance;
+            if i as u64 == outcome_idx {
+                outcome_balance = pool_balance;
+            }
+        }
+
+        //@TODO Check decimals
+        math::complex_div_u128(ONE, outcome_balance, total_pools_balance)
+    }
 }

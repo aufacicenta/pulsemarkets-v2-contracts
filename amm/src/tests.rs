@@ -512,6 +512,65 @@ mod tests {
     }
 
     #[test]
+    fn test_calc_outcome_price() {
+        let mut context = setup_context();
+        let expires_at = add_expires_at_nanos(100);
+        let contract_account = AccountId::new_unchecked("amm.near".to_string());
+
+
+        testing_env!(context
+            .current_account_id(contract_account.clone())
+            .build());
+
+        let mut contract = Market::new(
+            create_marketdata(2, expires_at, 100),
+            AccountId::new_unchecked(alice().to_string()),
+            10
+        );
+
+        contract.publish();
+
+        testing_env!(
+            context.build(),
+            near_sdk::VMConfig::test(),
+            near_sdk::RuntimeFeesConfig::test(),
+            Default::default(),
+            vec![ PromiseResult::Successful(vec![]) ],
+        );
+
+        contract.on_create_proposals_callback();
+
+        assert_eq!(
+            MarketStatus::Running,
+            contract.get_status()
+        );
+
+        // ##################
+        // Bob adds liquidity
+        testing_env!(context
+            .signer_account_id(bob())
+            .attached_deposit(ONE_NEAR * 10)
+            .build());
+
+        contract.add_liquidity();
+
+        assert_eq!(ONE_NEAR / 2, contract.calc_outcome_price(0));
+        assert_eq!(ONE_NEAR / 2, contract.calc_outcome_price(1));
+
+        // #####
+        // Alice Buys the outcome 1 with 10 as collateral
+        testing_env!(context
+            .signer_account_id(alice())
+            .attached_deposit(ONE_NEAR * 10)
+            .build());
+
+        contract.buy(1, 0);
+
+        assert_eq!(800000000000000000000000, contract.calc_outcome_price(0));
+        assert_eq!(200000000000000000000000, contract.calc_outcome_price(1));
+    }
+
+    #[test]
     fn test_get_balances() {
         let mut context = setup_context();
         let expires_at = add_expires_at_nanos(100);
