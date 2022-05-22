@@ -1,4 +1,4 @@
-use near_sdk::{env, near_bindgen, AccountId, Balance};
+use near_sdk::{env, near_bindgen};
 
 use crate::storage::*;
 
@@ -6,6 +6,13 @@ use crate::storage::*;
 impl Market {
     pub fn get_market_data(&self) -> MarketData {
         self.market.clone()
+    }
+
+    pub fn get_outcome_token(&self, outcome_id: OutcomeId) -> OutcomeToken {
+        match self.outcome_tokens.get(&outcome_id) {
+            Some(token) => token,
+            None => env::panic_str("ERR_INVALID_OUTCOME_ID"),
+        }
     }
 
     pub fn is_published(&self) -> bool {
@@ -17,8 +24,8 @@ impl Market {
     }
 
     pub fn is_open(&self) -> bool {
-        self.market.start_datetime < env::block_timestamp().try_into().unwrap()
-            && self.market.end_datetime >= env::block_timestamp().try_into().unwrap()
+        self.market.starts_at < env::block_timestamp().try_into().unwrap()
+            && self.market.ends_at >= env::block_timestamp().try_into().unwrap()
     }
 
     pub fn is_resolved(&self) -> bool {
@@ -26,7 +33,7 @@ impl Market {
     }
 
     pub fn is_resolution_window_expired(&self) -> bool {
-        self.market.end_datetime + self.market.resolution_window
+        self.market.ends_at + self.market.resolution_window
             < env::block_timestamp().try_into().unwrap()
     }
 }

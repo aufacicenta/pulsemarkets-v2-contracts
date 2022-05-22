@@ -110,8 +110,11 @@ impl Market {
         match self.outcome_tokens.get(&payload.outcome_id) {
             Some(token) => {
                 let mut outcome_token = token;
+
                 outcome_token.mint(&sender_id, amount);
+
                 self.update_outcome_tokens_prices(payload.outcome_id);
+
                 return outcome_token.total_supply();
             }
             None => {
@@ -140,19 +143,19 @@ impl Market {
      */
     #[payable]
     #[private]
-    pub fn buy(&mut self, sender_id: AccountId, amount: u128, payload: BuyArgs) -> Balance {
+    pub fn buy(&mut self, _sender_id: AccountId, _amount: u128, payload: BuyArgs) -> Balance {
         self.assert_valid_outcome(payload.outcome_id);
         return 0;
     }
 
     /**
-     * An account may drop their bet and get their CT back
+     * An account may sell their bet and get their CT back
      * No lp_fee is charged on this transaction
      *
      * Transfers CT amount to the account if their OT amount <= balance
      *
-     * Decrements the price of the selected OT by the predefined percentage
-     * Increments the price of the other OTs by the predefined percentage
+     * Decrements the price of the selected OT by the predefined ratio
+     * Increments the price of the other OTs by the predefined ratio
      * SUM of PRICES MUST EQUAL 1!!
      *
      * Decrements the balance of OT in the account's balance
@@ -163,7 +166,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn drop(&mut self, outcome_id: OutcomeId, amount: u64) {}
+    pub fn sell(&mut self, _outcome_id: OutcomeId, _amount: u64) {}
 
     /**
      * Closes the market
@@ -176,7 +179,7 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn resolve(&mut self, outcome_id: OutcomeId) {}
+    pub fn resolve(&mut self, _outcome_id: OutcomeId) {}
 
     /**
      * Lets LPs and accounts redeem their CTs
@@ -252,6 +255,7 @@ impl Market {
             match self.outcome_tokens.get(&(id as OutcomeId)) {
                 Some(token) => {
                     let mut outcome_token = token;
+
                     if outcome_token.outcome_id == outcome_id {
                         outcome_token.increase_price(self.price_ratio);
                     } else {

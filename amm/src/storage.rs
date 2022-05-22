@@ -6,8 +6,10 @@ use near_sdk::{
     serde::{Deserialize, Serialize},
     AccountId, Balance, BorshStorageKey,
 };
+use std::fmt;
 
 pub type OutcomeId = u64;
+pub type Timestamp = u64;
 pub type LiquidityProvider = AccountId;
 pub type Price = f64;
 pub type PriceRatio = f64;
@@ -21,13 +23,12 @@ pub struct MarketData {
     pub description: String,
     pub info: String,
     pub category: Option<String>,
-    pub subcategory: Option<String>,
     pub options: Vec<String>,
     // Datetime nanos: the market is open
-    pub start_datetime: u64,
+    pub starts_at: Timestamp,
     // Datetime nanos: the market is closed
-    pub end_datetime: u64,
-    pub resolution_window: u64,
+    pub ends_at: Timestamp,
+    pub resolution_window: Timestamp,
 }
 
 #[near_bindgen]
@@ -52,6 +53,16 @@ pub enum MarketStatus {
     Pending,
     Published,
     Resolved,
+}
+
+impl std::fmt::Display for MarketStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MarketStatus::Pending => write!(f, "Pending"),
+            MarketStatus::Published => write!(f, "Published"),
+            MarketStatus::Resolved => write!(f, "Resolved"),
+        }
+    }
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]

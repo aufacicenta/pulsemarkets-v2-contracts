@@ -1,4 +1,4 @@
-use near_sdk::{env, near_bindgen, serde_json, AccountId, Balance, PromiseOrValue};
+use near_sdk::{near_bindgen, serde_json, AccountId, Balance};
 
 use crate::*;
 

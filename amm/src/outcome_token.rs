@@ -1,6 +1,6 @@
 use near_sdk::{collections::LookupMap, env, AccountId, Balance};
 
-use crate::storage::{OutcomeId, OutcomeToken, Price, PriceRatio, WrappedBalance};
+use crate::storage::{OutcomeId, OutcomeToken, Price, PriceRatio};
 
 impl Default for OutcomeToken {
     fn default() -> Self {
@@ -16,14 +16,9 @@ impl OutcomeToken {
      * @returns the newly created outcome token
      * */
     pub fn new(outcome_id: OutcomeId, initial_supply: Balance, price: Price) -> Self {
-        let mut accounts: LookupMap<AccountId, Balance> =
-            LookupMap::new(format!("OT:{}", outcome_id).as_bytes().to_vec());
-
-        accounts.insert(&env::current_account_id(), &initial_supply);
-
         Self {
             total_supply: initial_supply,
-            accounts,
+            accounts: LookupMap::new(format!("OT:{}", outcome_id).as_bytes().to_vec()),
             outcome_id,
             price,
         }
