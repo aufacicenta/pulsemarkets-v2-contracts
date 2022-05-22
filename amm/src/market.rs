@@ -195,7 +195,7 @@ impl Market {
             // Getting the max Pool Weight
             let mut pool_weight = 0;
             for market_option in 0 .. self.market.options {
-                let balance = self.conditional_tokens.get_balance_by_token_idx(&(market_option as u64));
+                let balance = self.conditional_tokens.get_balance_by_account(&(market_option as u64), &env::current_account_id());
                 if pool_weight < balance {
                     pool_weight = balance;
                 }
@@ -203,7 +203,7 @@ impl Market {
 
             // Calculate LP to Mint and SendBacks
             for market_option in 0 .. self.market.options {
-                let balance = self.conditional_tokens.get_balance_by_token_idx(&(market_option as u64));
+                let balance = self.conditional_tokens.get_balance_by_account(&(market_option as u64), &env::current_account_id());
                 let remaining = math::complex_div_u128(ONE, math::complex_mul_u128(ONE, balance, amount), pool_weight);
                 send_back.push(amount - remaining);
             }
@@ -292,35 +292,9 @@ impl Market {
         Promise::new(env::signer_account_id()).transfer(return_amount);
     }
 
-    /**
-     * Closes the market
-     * Sets the winning MOT price to 1
-     * Sets the losing MOT prices to 0
-     *
-     * @notice only after the market start_date and end_date period is over
-     * @notice only by a Sputnik2 DAO Function Call Proposal!!
-     *
-     * @returns
-     */
     #[payable]
     pub fn resolve(&mut self) {}
 
-    /**
-     * Lets LPs and accounts redeem their CTs
-     *
-     * Transfers CT to the account if > 0
-     * Decrements the balance of MOT in the account's balance
-     *
-     * Transfers CT to the LP account if > 0
-     * Decrements the balance of MOT in the MOT LP pool balance
-     *
-     * Will transfer the proportional CT to the account because the price is 1, so
-     * make a calculation of the account CT balance and the closing price and transfer the difference, eg 1 - closing price
-     *
-     * @notice only after the market start_date and end_date period is over, eg. self.is_closed
-     *
-     * @returns
-     */
     #[payable]
     pub fn redeem(&mut self) {}
 }

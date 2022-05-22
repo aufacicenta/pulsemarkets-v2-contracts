@@ -59,7 +59,7 @@ impl Market {
             if i as u64 != outcome_idx {
                 let k = math::complex_mul_u128(ONE, ending_outcome_balance, pool_balance);
 
-                if pool_balance - retire_amount <= 0 {
+                if retire_amount > pool_balance {
                     env::panic_str("ERR_NON_ZERO_POOLS");
                 }
 
@@ -85,8 +85,8 @@ impl Market {
             let pool_balance = self.conditional_tokens.get_balance_by_account(&(i as u64), &env::current_account_id());
 
             total_pools_balance += pool_balance;
-            if i as u64 == outcome_idx {
-                outcome_balance = pool_balance;
+            if i as u64 != outcome_idx {
+                outcome_balance += pool_balance;
             }
         }
 

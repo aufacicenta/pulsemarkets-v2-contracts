@@ -566,8 +566,8 @@ mod tests {
 
         contract.buy(1, 0);
 
-        assert_eq!(800000000000000000000000, contract.calc_outcome_price(0));
-        assert_eq!(200000000000000000000000, contract.calc_outcome_price(1));
+        assert_eq!(200000000000000000000000, contract.calc_outcome_price(0));
+        assert_eq!(800000000000000000000000, contract.calc_outcome_price(1));
     }
 
     #[test]
@@ -721,6 +721,175 @@ mod tests {
         let balance_outcome_0 = contract.conditional_tokens.get_balance_by_account(&0, &contract_account.clone());
         let balance_outcome_1 = contract.conditional_tokens.get_balance_by_account(&1, &contract_account.clone());
 
+        assert_eq!(k / ONE_NEAR, math::complex_mul_u128(ONE_NEAR, balance_outcome_0, balance_outcome_1) / ONE_NEAR);
+    }
+
+    #[test]
+    fn test_sell() {
+        let mut context = setup_context();
+        let expires_at = add_expires_at_nanos(100);
+        let contract_account = AccountId::new_unchecked("amm.near".to_string());
+        let outcomes = 2;
+
+        testing_env!(context
+            .current_account_id(contract_account.clone())
+            .build());
+
+        let mut contract = Market::new(
+            create_marketdata(outcomes, expires_at, 100),
+            AccountId::new_unchecked(alice().to_string()),
+            10
+        );
+
+        contract.publish();
+
+        testing_env!(
+            context.build(),
+            near_sdk::VMConfig::test(),
+            near_sdk::RuntimeFeesConfig::test(),
+            Default::default(),
+            vec![ PromiseResult::Successful(vec![]) ],
+        );
+
+        contract.on_create_proposals_callback();
+
+        // Bob adds liquidity
+        testing_env!(context
+            .signer_account_id(bob())
+            .attached_deposit(ONE_NEAR * 10)
+            .build());
+
+        contract.add_liquidity();
+
+        assert_eq!(vec![ONE_NEAR * 10, ONE_NEAR * 10], contract.conditional_tokens.get_balances(outcomes as u64));
+
+        let balance_outcome_0 = contract.conditional_tokens.get_balance_by_account(&0, &contract_account.clone());
+        let balance_outcome_1 = contract.conditional_tokens.get_balance_by_account(&1, &contract_account.clone());
+        let k = math::complex_mul_u128(ONE_NEAR, balance_outcome_0, balance_outcome_1);
+
+        // #####
+        // Alice Buys the outcome 1 with 10 as collateral
+        testing_env!(context
+            .signer_account_id(alice())
+            .attached_deposit(ONE_NEAR * 10)
+            .build());
+
+        contract.buy(1, 0);
+
+        assert_eq!(vec![ONE_NEAR * 20, ONE_NEAR * 20], contract.conditional_tokens.get_balances(outcomes as u64));
+
+        assert_eq!(k / ONE_NEAR, math::complex_mul_u128(ONE_NEAR, balance_outcome_0, balance_outcome_1) / ONE_NEAR);
+
+        // Checking Collateral Tokens Accounts
+        assert_eq!(0, contract.conditional_tokens.get_balance_by_account(&0, &alice()));
+        assert_eq!(ONE_NEAR * 15, contract.conditional_tokens.get_balance_by_account(&1, &alice()));
+        assert_eq!(0, contract.conditional_tokens.get_balance_by_account(&1, &bob()));
+
+        // Checking pool balances
+        assert_eq!(ONE_NEAR * 20, contract.conditional_tokens.get_balance_by_account(&0, &contract_account.clone()));
+        assert_eq!(ONE_NEAR * 5, contract.conditional_tokens.get_balance_by_account(&1, &contract_account.clone()));
+
+        // #####
+        // Bob Buys the outcome 1 with 10 as collateral
+        testing_env!(context
+            .signer_account_id(bob())
+            .attached_deposit(ONE_NEAR * 10)
+            .build());
+
+        contract.buy(1, 0);
+
+        assert_eq!(0, contract.conditional_tokens.get_balance_by_account(&0, &bob()));
+        assert_eq!(11666666666666666666666667, contract.conditional_tokens.get_balance_by_account(&1, &bob()));
+
+        // #####
+        // Carol Buys the outcome 1 with 10 as collateral
+        testing_env!(context
+            .signer_account_id(carol())
+            .attached_deposit(ONE_NEAR * 10)
+            .build());
+
+        contract.buy(1, 0);
+
+        assert_eq!(0, contract.conditional_tokens.get_balance_by_account(&0, &carol()));
+        assert_eq!(10833333333333333333333333, contract.conditional_tokens.get_balance_by_account(&1, &carol()));
+
+        // #####
+        // Carol Buys the outcome 0 with 10 as collateral
+        testing_env!(context
+            .signer_account_id(carol())
+            .attached_deposit(ONE_NEAR * 10)
+            .build());
+
+        contract.buy(0, 0);
+
+        assert_eq!(42000000000000000000000000, contract.conditional_tokens.get_balance_by_account(&0, &carol()));
+        assert_eq!(10833333333333333333333333, contract.conditional_tokens.get_balance_by_account(&1, &carol()));
+
+        let balance_outcome_0 = contract.conditional_tokens.get_balance_by_account(&0, &contract_account.clone());
+        let balance_outcome_1 = contract.conditional_tokens.get_balance_by_account(&1, &contract_account.clone());
+        assert_eq!(k / ONE_NEAR, math::complex_mul_u128(ONE_NEAR, balance_outcome_0, balance_outcome_1) / ONE_NEAR);
+
+        // #####
+        // Alice Sell the outcome 1 with 10 as collateral
+        testing_env!(context
+            .signer_account_id(alice())
+            .build());
+
+        let retire_amount = ONE_NEAR * 3;
+        let max_outcome_tokens_to_sell = contract.calc_sell_amount(retire_amount, 1);
+        contract.sell(retire_amount, 1, max_outcome_tokens_to_sell);
+
+        assert_eq!(0, contract.conditional_tokens.get_balance_by_account(&0, &alice()));
+        assert_eq!(4500000000000000000000000, contract.conditional_tokens.get_balance_by_account(&1, &alice()));
+
+        let balance_outcome_0 = contract.conditional_tokens.get_balance_by_account(&0, &contract_account.clone());
+        let balance_outcome_1 = contract.conditional_tokens.get_balance_by_account(&1, &contract_account.clone());
+        assert_eq!(k / ONE_NEAR, math::complex_mul_u128(ONE_NEAR, balance_outcome_0, balance_outcome_1) / ONE_NEAR);
+
+        let price_0 = contract.calc_outcome_price(0);
+        let price_1 = contract.calc_outcome_price(1);
+
+        // Alice adds liquidity
+        testing_env!(context
+            .signer_account_id(alice())
+            .attached_deposit(ONE_NEAR * 15)
+            .build());
+
+        contract.add_liquidity();
+
+        // Checking Liquidity Tokens
+        assert_eq!(7500000000000000000000000, contract.ft_balance_of(alice()).0);
+        assert_eq!(10000000000000000000000000, contract.ft_balance_of(bob()).0);
+        assert_eq!(0, contract.ft_balance_of(carol()).0);
+        assert_eq!(0, contract.ft_balance_of(contract_account.clone()).0);
+
+        assert_eq!(11250000000000000000000000, contract.conditional_tokens.get_balance_by_account(&0, &alice()));
+        assert_eq!(4500000000000000000000000, contract.conditional_tokens.get_balance_by_account(&1, &alice()));
+
+        assert_eq!(vec![ONE_NEAR * 62, ONE_NEAR * 62], contract.conditional_tokens.get_balances(outcomes as u64));
+
+        let balance_outcome_0 = contract.conditional_tokens.get_balance_by_account(&0, &contract_account.clone());
+        let balance_outcome_1 = contract.conditional_tokens.get_balance_by_account(&1, &contract_account.clone());
+        let k = math::complex_mul_u128(ONE_NEAR, balance_outcome_0, balance_outcome_1);
+
+        // Price should be the same after adding liquidity
+        assert_eq!(price_0, contract.calc_outcome_price(0));
+        assert_eq!(price_1, contract.calc_outcome_price(1));
+
+        // #####
+        // Carol Buys the outcome 0 with 1 as collateral
+        testing_env!(context
+            .signer_account_id(carol())
+            .attached_deposit(ONE_NEAR)
+            .build());
+
+        contract.buy(0, 0);
+
+        assert_eq!(43243055555555555555555556, contract.conditional_tokens.get_balance_by_account(&0, &carol()));
+        assert_eq!(10833333333333333333333333, contract.conditional_tokens.get_balance_by_account(&1, &carol()));
+
+        let balance_outcome_0 = contract.conditional_tokens.get_balance_by_account(&0, &contract_account.clone());
+        let balance_outcome_1 = contract.conditional_tokens.get_balance_by_account(&1, &contract_account.clone());
         assert_eq!(k / ONE_NEAR, math::complex_mul_u128(ONE_NEAR, balance_outcome_0, balance_outcome_1) / ONE_NEAR);
     }
 }
