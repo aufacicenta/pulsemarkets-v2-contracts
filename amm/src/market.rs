@@ -25,6 +25,8 @@ pub struct Market {
     pub conditional_tokens: ConditionalTokens,
     pub liquidity_token: FungibleToken,
     pub metadata: LazyOption<FungibleTokenMetadata>,
+    pub payout_numerators: Vec<u64>,
+    pub payout_denominator: u64,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
@@ -84,6 +86,8 @@ impl Market {
             },
             liquidity_token: FungibleToken::new(b"a".to_vec()),
             metadata: LazyOption::new(b"m".to_vec(), None),
+            payout_numerators: Vec::new(),
+            payout_denominator: 0,
         }
     }
 
@@ -318,10 +322,70 @@ impl Market {
     }
 
     #[payable]
-    pub fn resolve(&mut self) {}
+    pub fn resolve(&mut self, payouts: Vec<u64>) {
+        if self.status == MarketStatus::Closed {
+            env::panic_str("ERR_MARKET_ALREADY_CLOSED");
+        }
+
+        if self.is_resolution_window_expired() {
+            env::panic_str("ERR_RESOLUTION_WINDOW_EXPIRED");
+        }
+
+        if env::signer_account_id() != self.market.oracle {
+            env::panic_str("ERR_ORACLE_ACCOUNT");
+        }
+
+        if payouts.len() as u8 != self.market.options {
+            env::panic_str("ERR_PAYOUTS_LEN");
+        }
+
+        let mut denominator = 0;
+        for i in 0 ..  payouts.len() {
+            let response = payouts[i];
+
+            denominator += response;
+            self.payout_numerators.push(response);
+        }
+
+        if denominator == 0 {
+            env::panic_str("ERR_DENOMINATOR_CAN_NOT_BE_0");
+        }
+
+        self.payout_denominator = denominator;
+        self.status = MarketStatus::Closed;
+    }
 
     #[payable]
-    pub fn redeem(&mut self) {}
+    pub fn redeem_positions(&mut self) {
+        if self.status != MarketStatus::Closed {
+            env::panic_str("ERR_MARKET_SHOULD_BE_CLOSED");
+        }
+
+        if self.payout_denominator == 0 || self.payout_numerators.len() == 0{
+            env::panic_str("ERR_MARKET_NOT_RESOLVED");
+        }
+
+        let mut total_payout = 0;
+
+        for i in 0 .. self.payout_numerators.len() {
+            let payout_stake = self.conditional_tokens.get_balance_by_account(&(i as u64), &env::signer_account_id());
+            if payout_stake > 0 {
+                total_payout = total_payout + math::complex_div_u128(
+                    ONE, 
+                    math::complex_mul_u128(ONE, payout_stake, self.payout_numerators[i] as u128), 
+                    self.payout_denominator as u128);
+                
+                // Burn conditional tokens
+                self.conditional_tokens.burn(i as u64, env::signer_account_id(), payout_stake);
+            }
+        }
+
+        if total_payout > 0 {
+            // Redeem Collateral Token
+            Promise::new(env::signer_account_id()).transfer(total_payout);
+        }
+
+    }
 }
 
 near_contract_standards::impl_fungible_token_core!(Market, liquidity_token);
