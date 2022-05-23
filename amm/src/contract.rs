@@ -36,6 +36,8 @@ impl Market {
             env::panic_str("ERR_ALREADY_INITIALIZED");
         }
 
+        // @TODO assert at least 2 options
+
         Self {
             market,
             dao_account_id,
@@ -112,6 +114,7 @@ impl Market {
                 let mut outcome_token = token;
 
                 outcome_token.mint(&sender_id, amount);
+                self.update_outcome_token(&outcome_token);
 
                 self.update_outcome_tokens_prices(payload.outcome_id);
 
@@ -248,10 +251,12 @@ impl Market {
         1 as Price / self.market.options.len() as Price
     }
 
-    fn update_outcome_tokens_prices(&self, outcome_id: OutcomeId) {
+    fn update_outcome_tokens_prices(&mut self, outcome_id: OutcomeId) {
         let mut k: Price = 0.0;
 
         for id in 0..self.market.options.len() {
+            self.assert_valid_outcome(id as OutcomeId);
+
             match self.outcome_tokens.get(&(id as OutcomeId)) {
                 Some(token) => {
                     let mut outcome_token = token;
@@ -262,6 +267,8 @@ impl Market {
                         outcome_token.decrease_price(self.price_ratio);
                     }
 
+                    self.update_outcome_token(&outcome_token);
+
                     k += outcome_token.get_price();
                 }
                 None => {}
@@ -269,5 +276,10 @@ impl Market {
         }
 
         assert_eq!(k, 1.0, "ERR_PRICE_CONSTANT_SHOULD_EQ_1");
+    }
+
+    fn update_outcome_token(&mut self, outcome_token: &OutcomeToken) {
+        self.outcome_tokens
+            .insert(&outcome_token.outcome_id, outcome_token);
     }
 }

@@ -33,8 +33,7 @@ impl FungibleTokenReceiver for Market {
         let amount: u128 = amount.into();
         assert!(amount > 0, "ERR_ZERO_AMOUNT");
 
-        let payload: Payload =
-            serde_json::from_str(&msg).expect("Failed to parse the payload, invalid `msg` format");
+        let payload: Payload = serde_json::from_str(&msg).expect("ERR_INVALID_PAYLOAD");
 
         match payload {
             Payload::AddLiquidityArgs(payload) => self.add_liquidity(sender_id, amount, payload),
