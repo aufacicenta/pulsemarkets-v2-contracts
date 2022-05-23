@@ -1,0 +1,134 @@
+use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+use near_sdk::collections::LookupMap;
+use near_sdk::{env, AccountId, Balance, BorshStorageKey};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct ConditionalTokens {
+    pub tokens: LookupMap<u64, LookupMap<AccountId, Balance>>,
+    pub total_balances: LookupMap<u64, Balance>,
+}
+
+#[derive(BorshStorageKey, BorshSerialize)]
+pub enum StorageKeys {
+    ConditionalTokensBalances,
+    ConditionalTokensTotalBalances,
+    SubConditionalTokensAccounts { account_hash: Vec<u8> },
+}
+
+impl ConditionalTokens {
+
+    pub fn mint(&mut self, token_idx: u64, account: AccountId, amount: Balance) {
+        let mut token = self.get_token(&token_idx);
+        
+        // Update Account Balance
+        let mut account_balance = self.get_balance_by_account(&token_idx, &account);
+        account_balance = account_balance.wrapping_add(amount);
+        token.insert(&account, &account_balance);
+        self.tokens.insert(&token_idx, &token);
+
+        // Update Token Balance
+        let mut token_balance = self.get_balance_by_token_idx(&token_idx);
+        token_balance = token_balance.wrapping_add(amount);
+        self.total_balances.insert(&token_idx, &token_balance);
+    }
+
+    pub fn burn(&mut self, token_idx: u64, account: AccountId, amount: Balance) {
+        let mut token = self.get_token(&token_idx);
+        
+        // Update Account Balance
+        let mut account_balance = self.get_balance_by_account(&token_idx, &account);
+
+        if amount > account_balance {
+            env::panic_str("ERR_NOT_ENOUGH__ACCOUNT_BALANCE");
+        }
+
+        account_balance = account_balance.wrapping_sub(amount);
+        token.insert(&account, &account_balance);
+        self.tokens.insert(&token_idx, &token);
+
+        // Update Token Balance
+        let mut token_balance = self.get_balance_by_token_idx(&token_idx);
+
+        if amount > token_balance {
+            env::panic_str("ERR_NOT_ENOUGH__ACCOUNT_BALANCE");
+        }
+
+        token_balance = token_balance.wrapping_sub(amount);
+        self.total_balances.insert(&token_idx, &token_balance);
+    }
+
+    pub fn transfer(&mut self, token_idx: u64, from: AccountId, to: AccountId, amount: Balance) {
+        let mut token = self.get_token(&token_idx);
+
+        // Get Tokens From
+        let from_balance = match token.get(&from) {
+            Some(balance) => balance,
+            None => 0,
+        };
+
+        // Get Tokens To
+        let to_balance = match token.get(&to) {
+            Some(balance) => balance,
+            None => 0,
+        };
+
+        if amount > from_balance {
+            env::panic_str("ERR_NOT_ENOUGH_BALANCE");
+        }
+
+        // Update Balances
+        token.insert(&from, &from_balance.wrapping_sub(amount));
+        token.insert(&to, &to_balance.wrapping_add(amount));
+
+        self.tokens.insert(&token_idx, &token);
+    }
+
+    pub fn transfer_batch(&mut self, from: AccountId, to: AccountId, token_idx: Vec<u64>, amount: Vec<Balance>) {
+        if token_idx.len() != amount.len(){
+            env::panic_str("ERR_SAME_LEN");
+        }
+
+        let idxs = token_idx.len();
+        for idx in 0 .. idxs {
+            self.transfer(idx as u64, from.clone(), to.clone(), amount[idx]);
+        }
+    }
+
+    fn get_token(&self, token_idx: &u64) -> LookupMap<AccountId, Balance> {
+        let token = self
+            .tokens
+            .get(token_idx)
+            .unwrap_or_else(|| {
+                LookupMap::new(StorageKeys::SubConditionalTokensAccounts {
+                    account_hash: env::sha256(&token_idx.to_be_bytes()),
+                })
+            });
+        token
+    }
+
+    pub fn get_balance_by_token_idx(&self, token_idx: &u64) -> Balance {
+        match self.total_balances.get(token_idx) {
+            Some(balance) => balance,
+            None => 0,
+        }
+    }
+
+    pub fn get_balance_by_account(&self, token_idx: &u64, account: &AccountId) -> Balance {
+        match self.tokens.get(token_idx) {
+            Some(token) => match token.get(account) {
+                Some(balance) => balance,
+                None => 0,
+            },
+            None => 0,
+        }
+    }
+
+    pub fn get_balances(&self, outcomes_amount: u64) -> Vec<Balance>{
+        let mut balances = Vec::new();
+        for i in 0 .. outcomes_amount {
+            let balance = self.get_balance_by_token_idx(&i);
+            balances.push(balance);
+        }
+        balances
+    }
+}
