@@ -205,7 +205,7 @@ mod tests {
         assert_eq!(outcome_token_1.total_supply(), 0, "Supply must be 0");
 
         assert_eq!(
-            outcome_token_0.get_balance(&alice()),
+            outcome_token_0.get_lp_balance(&alice()),
             10,
             "Balance must be 10"
         );
@@ -222,12 +222,13 @@ mod tests {
         outcome_token_1 = contract.get_outcome_token(1);
 
         assert_eq!(
-            outcome_token_0.get_balance(&bob()),
+            outcome_token_0.get_lp_balance(&bob()),
             10,
             "Balance must be 10"
         );
 
         assert_eq!(outcome_token_0.get_price(), 0.7, "Price must be 0.7");
+
         assert_eq!(
             outcome_token_1.get_price(),
             0.30000000000000004,

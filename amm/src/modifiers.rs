@@ -16,6 +16,12 @@ impl Market {
         }
     }
 
+    pub fn assert_is_open(&self) {
+        if !self.is_open() {
+            env::panic_str("ERR_MARKET_IS_CLOSED");
+        }
+    }
+
     pub fn assert_is_pending(&self) {
         if !self.is_pending() {
             env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");

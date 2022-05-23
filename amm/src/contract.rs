@@ -146,9 +146,32 @@ impl Market {
      */
     #[payable]
     #[private]
-    pub fn buy(&mut self, _sender_id: AccountId, _amount: u128, payload: BuyArgs) -> Balance {
+    pub fn buy(&mut self, sender_id: AccountId, amount: u128, payload: BuyArgs) -> Balance {
+        self.assert_is_published();
+        self.assert_is_open();
         self.assert_valid_outcome(payload.outcome_id);
-        return 0;
+
+        match self.outcome_tokens.get(&payload.outcome_id) {
+            Some(token) => {
+                let mut outcome_token = token;
+
+                match outcome_token.get_lp_account() {
+                    Some(lp_account_id) => {
+                        outcome_token.safe_transfer_internal(&lp_account_id, &sender_id, amount);
+                        self.update_outcome_token(&outcome_token);
+
+                        // @TODO charge LP_FEE
+
+                        self.update_outcome_tokens_prices(payload.outcome_id);
+
+                        return outcome_token.total_supply();
+                    }
+                    // @TODO the buyer becomes a LP, mints remaining amount if any
+                    None => 0,
+                }
+            }
+            None => 0,
+        }
     }
 
     /**

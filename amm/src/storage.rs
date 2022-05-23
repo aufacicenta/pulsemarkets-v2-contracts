@@ -1,6 +1,6 @@
 use near_sdk::{
     borsh::{self, BorshDeserialize, BorshSerialize},
-    collections::LookupMap,
+    collections::{LookupMap, UnorderedMap},
     json_types::{U128, U64},
     near_bindgen,
     serde::{Deserialize, Serialize},
@@ -68,7 +68,9 @@ impl std::fmt::Display for MarketStatus {
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct OutcomeToken {
     // map `AccountId` to corresponding `Balance` in the market
-    pub accounts: LookupMap<AccountId, Balance>,
+    pub balances: LookupMap<AccountId, Balance>,
+    // keep track of LP balances on mint and burn
+    pub lp_balances: UnorderedMap<AccountId, Balance>,
     // total supply of this outcome_token
     pub total_supply: Balance,
     // the outcome this token represents, used for storage pointers
