@@ -172,6 +172,17 @@ impl Market {
         }
     }
 
+    fn get_pool_balances(&self) -> Vec<u128>{
+        let mut balances = Vec::new();
+
+        for market_option in 0 .. self.market.options {
+            let outcome_balance = self.conditional_tokens.get_balance_by_account(&(market_option as u64), &env::current_account_id());
+            balances.push(outcome_balance);
+        }
+        
+        balances
+    }
+
     #[payable]
     pub fn add_liquidity(&mut self) {
         if self.status != MarketStatus::Running {
@@ -227,7 +238,21 @@ impl Market {
     }
 
     #[payable]
-    pub fn remove_liquidity(&mut self) {}
+    pub fn remove_liquidity(&mut self, lp_to_burn: u128) {
+        let pool_balances = self.get_pool_balances();
+        let lp_total_supply = self.liquidity_token.total_supply;
+        let mut send_back = Vec::new();
+
+        for i in 0 .. pool_balances.len() {
+            send_back.push(math::complex_div_u128(ONE, math::complex_mul_u128(ONE, pool_balances[i], lp_to_burn), lp_total_supply));
+        }
+
+        // Burn LP Tokens
+        self.liquidity_token.internal_withdraw(&env::signer_account_id(), lp_to_burn);
+
+        // Transfer Outcomes Tokens
+        self.conditional_tokens.transfer_batch(env::current_account_id(), env::signer_account_id(), vec![0; pool_balances.len()], send_back);
+    }
 
     #[payable]
     pub fn buy(&mut self, outcome_idx: u64, min_outcome_tokens_to_buy: u128) {

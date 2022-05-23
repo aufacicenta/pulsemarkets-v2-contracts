@@ -892,4 +892,147 @@ mod tests {
         let balance_outcome_1 = contract.conditional_tokens.get_balance_by_account(&1, &contract_account.clone());
         assert_eq!(k / ONE_NEAR, math::complex_mul_u128(ONE_NEAR, balance_outcome_0, balance_outcome_1) / ONE_NEAR);
     }
+
+    #[test]
+    fn test_remove_liquidity() {
+        let mut context = setup_context();
+        let expires_at = add_expires_at_nanos(100);
+        let contract_account = AccountId::new_unchecked("amm.near".to_string());
+        let outcomes = 2;
+
+        testing_env!(context
+            .current_account_id(contract_account.clone())
+            .build());
+
+        let mut contract = Market::new(
+            create_marketdata(outcomes, expires_at, 100),
+            AccountId::new_unchecked(alice().to_string()),
+            10
+        );
+
+        contract.publish();
+
+        testing_env!(
+            context.build(),
+            near_sdk::VMConfig::test(),
+            near_sdk::RuntimeFeesConfig::test(),
+            Default::default(),
+            vec![ PromiseResult::Successful(vec![]) ],
+        );
+
+        contract.on_create_proposals_callback();
+
+        // ###
+        // Alice adds liquidity
+        testing_env!(context
+            .signer_account_id(alice())
+            .attached_deposit(ONE_NEAR * 5)
+            .build());
+
+        contract.add_liquidity();
+
+        // ###
+        // Bob adds liquidity
+        testing_env!(context
+            .signer_account_id(bob())
+            .attached_deposit(ONE_NEAR * 8)
+            .build());
+
+        contract.add_liquidity();
+
+        // Checking balances
+        assert_eq!(vec![ONE_NEAR * 13, ONE_NEAR * 13], contract.conditional_tokens.get_balances(outcomes as u64));
+
+        // Checking Liquidity Tokens
+        assert_eq!(ONE_NEAR * 5, contract.ft_balance_of(alice()).0);
+        assert_eq!(ONE_NEAR * 8, contract.ft_balance_of(bob()).0);
+        assert_eq!(0, contract.ft_balance_of(carol()).0);
+
+        // ###
+        // Carol Buys the outcome 0 with 2 as collateral
+        testing_env!(context
+            .signer_account_id(carol())
+            .attached_deposit(ONE_NEAR * 2)
+            .build());
+
+        contract.buy(0, 0);
+
+        // Checking Carol Balances
+        assert_eq!(3733333333333333333333333, contract.conditional_tokens.get_balance_by_account(&0, &carol()));
+        assert_eq!(0, contract.conditional_tokens.get_balance_by_account(&1, &carol()));
+
+        // ###
+        // Carol adds liquidity
+        testing_env!(context
+            .signer_account_id(carol())
+            .attached_deposit(ONE_NEAR * 3)
+            .build());
+
+        contract.add_liquidity();
+
+        // Checking Liquidity Tokens
+        assert_eq!(ONE_NEAR * 5, contract.ft_balance_of(alice()).0);
+        assert_eq!(ONE_NEAR * 8, contract.ft_balance_of(bob()).0);
+        assert_eq!(2600000000000000000000000, contract.ft_balance_of(carol()).0);
+
+        // Checking Carol Balances
+        assert_eq!(4480000000000000000000000, contract.conditional_tokens.get_balance_by_account(&0, &carol()));
+        assert_eq!(0, contract.conditional_tokens.get_balance_by_account(&1, &carol()));
+
+        // ###
+        // Carol remove liquidity
+        testing_env!(context
+            .signer_account_id(carol())
+            .build());
+
+        contract.remove_liquidity(ONE_NEAR);
+
+        // Checking Carol Balances
+        assert_eq!(5346666666666666666666667, contract.conditional_tokens.get_balance_by_account(&0, &carol()));
+        assert_eq!(1153846153846153846153846, contract.conditional_tokens.get_balance_by_account(&1, &carol()));
+
+        // Checking Liquidity Tokens
+        assert_eq!(ONE_NEAR * 5, contract.ft_balance_of(alice()).0);
+        assert_eq!(ONE_NEAR * 8, contract.ft_balance_of(bob()).0);
+        assert_eq!(1600000000000000000000000, contract.ft_balance_of(carol()).0);
+
+        // ###
+        // Carol remove liquidity
+        testing_env!(context
+            .signer_account_id(carol())
+            .build());
+
+        contract.remove_liquidity(1600000000000000000000000);
+
+        // Checking Carol Balances
+        assert_eq!(6733333333333333333333334, contract.conditional_tokens.get_balance_by_account(&0, &carol()));
+        assert_eq!(3000000000000000000000000, contract.conditional_tokens.get_balance_by_account(&1, &carol()));
+
+        // Checking Liquidity Tokens
+        assert_eq!(ONE_NEAR * 5, contract.ft_balance_of(alice()).0);
+        assert_eq!(ONE_NEAR * 8, contract.ft_balance_of(bob()).0);
+        assert_eq!(0, contract.ft_balance_of(carol()).0);
+
+        // ###
+        // Bob remove liquidity
+
+        // Checking Bob Balances
+        assert_eq!(0, contract.conditional_tokens.get_balance_by_account(&0, &bob()));
+        assert_eq!(0, contract.conditional_tokens.get_balance_by_account(&1, &bob()));
+
+        testing_env!(context
+            .signer_account_id(bob())
+            .build());
+
+        contract.remove_liquidity(ONE_NEAR * 5);
+
+        // Checking Bob Balances
+        assert_eq!(4333333333333333333333333, contract.conditional_tokens.get_balance_by_account(&0, &bob()));
+        assert_eq!(5769230769230769230769231, contract.conditional_tokens.get_balance_by_account(&1, &bob()));
+
+        // Checking Liquidity Tokens
+        assert_eq!(ONE_NEAR * 5, contract.ft_balance_of(alice()).0);
+        assert_eq!(ONE_NEAR * 3, contract.ft_balance_of(bob()).0);
+        assert_eq!(0, contract.ft_balance_of(carol()).0);
+    }
 }
