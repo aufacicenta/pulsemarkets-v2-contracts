@@ -117,7 +117,6 @@ impl Market {
 
                 outcome_token.mint(&sender_id, amount);
                 self.update_outcome_token(&outcome_token);
-
                 self.update_outcome_tokens_prices(payload.outcome_id);
 
                 return outcome_token.total_supply();
@@ -162,8 +161,13 @@ impl Market {
             Some(token) => {
                 let mut outcome_token = token;
 
-                // @TODO charge LP_FEE to amount
-                outcome_token.lp_pool_transfer(&sender_id, amount);
+                // @TODO distribute rewards
+                // Maybe something like a 2.5% market fee
+                // - 0.5% goes to $PULSE stakers
+                // - 1.5% goes to LPs
+                // - 0.5% goes to the user who created the market
+                let amount_minus_fee = amount * (1.0 - self.lp_fee);
+                outcome_token.lp_pool_transfer(&sender_id, amount_minus_fee);
                 self.update_outcome_token(&outcome_token);
                 self.update_outcome_tokens_prices(payload.outcome_id);
 

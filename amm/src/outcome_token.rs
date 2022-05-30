@@ -35,11 +35,11 @@ impl OutcomeToken {
      * @param amount the amount of tokens to mint
      */
     pub fn mint(&mut self, account_id: &AccountId, amount: WrappedBalance) {
-        self.total_supply += amount;
         let lp_balance = self.lp_balances.get(account_id).unwrap_or(0.0);
         let new_balance = lp_balance + amount;
-        self.lp_pool_balance += amount;
         self.lp_balances.insert(account_id, &new_balance);
+        self.lp_pool_balance += amount;
+        self.total_supply += amount;
     }
 
     /**
@@ -94,6 +94,7 @@ impl OutcomeToken {
         assert!(amount > 0.0, "ERR_AMOUNT_LOWER_THAN_0");
 
         // @TODO if lp_pool_balance is not enough for amount, then mint more tokens?
+        // @TODO if more tokens are minted, should the buyer also become a LP?
         assert!(
             self.lp_pool_balance >= amount,
             "ERR_LP_POOL_BALANCE_LOWER_THAN_AMOUNT"
