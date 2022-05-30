@@ -117,37 +117,6 @@ impl OutcomeToken {
     }
 
     /**
-     * @notice transfer tokens from receiver account to LP pool
-     * @notice add an equal amount proportion to all LPs
-     * @param receiver_id is the account that should receive the tokens
-     * @param amount of tokens to transfer from LP Pool to receiver
-     */
-    pub fn lp_pool_sell(&mut self, sender_id: &AccountId, amount: WrappedBalance) {
-        assert!(amount > 0.0, "ERR_AMOUNT_LOWER_THAN_0");
-
-        let sender_balance = self.balances.get(&sender_id).unwrap_or(0.0);
-
-        assert!(
-            amount <= sender_balance,
-            "ERR_AMOUNT_GREATER_THAN_SENDER_BALANCE"
-        );
-
-        let new_balance = sender_balance - amount;
-        self.balances.insert(&sender_id, &new_balance);
-
-        let lp_balances = self.lp_balances.to_vec();
-        for values in lp_balances.iter() {
-            let lp_account_id = &values.0;
-            let lp_balance = &values.1;
-            let lp_weight = lp_balance / self.lp_pool_balance;
-            let new_lp_balance = lp_balance + (amount * lp_weight);
-            self.lp_balances.insert(&lp_account_id, &new_lp_balance);
-        }
-
-        self.lp_pool_balance -= amount;
-    }
-
-    /**
      * @notice mint specific amount of tokens for an account
      * @param account_id the account_id to mint tokens for
      * @param amount the amount of tokens to mint

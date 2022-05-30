@@ -115,7 +115,10 @@ impl Market {
             Some(token) => {
                 let mut outcome_token = token;
 
-                outcome_token.mint(&sender_id, amount);
+                let priced_amount = (1.0 - outcome_token.get_price()) * amount;
+                // @TODO add LP rate boost to incentivise buying early, eg. buy 1, get 2
+                outcome_token.mint(&sender_id, priced_amount);
+
                 self.update_outcome_token(&outcome_token);
                 self.update_outcome_tokens_prices(payload.outcome_id, true);
 
@@ -124,6 +127,60 @@ impl Market {
             None => {
                 env::panic_str("ERR_WRONG_OUTCOME_ID");
             }
+        }
+    }
+
+    /**
+     * An account may sell their liquidity and get their CT back
+     * No lp_fee is charged on this transaction
+     *
+     * Transfers CT amount to the account if their OT amount <= balance
+     *
+     * Decrements the price of the selected OT by the predefined ratio
+     * Increments the price of the other OTs by the predefined ratio
+     * SUM of PRICES MUST EQUAL 1!!
+     *
+     * Decrements the balance of OT in the account's balance
+     * Increments the balance of OT in the OT LP pool balance
+     *
+     * @notice only while the market is closed
+     *
+     * @returns
+     */
+    #[payable]
+    pub fn remove_liquidity(
+        &mut self,
+        outcome_id: OutcomeId,
+        amount: WrappedBalance,
+    ) -> WrappedBalance {
+        self.assert_is_published();
+        self.assert_is_closed();
+        self.assert_is_valid_outcome(outcome_id);
+
+        match self.outcome_tokens.get(&outcome_id) {
+            Some(token) => {
+                let mut outcome_token = token;
+
+                outcome_token.burn(&env::signer_account_id(), amount);
+
+                let priced_amount = outcome_token.get_price() * amount;
+                Promise::new(self.collateral_token_account_id.clone()).function_call(
+                    "ft_transfer".to_string(),
+                    json!({ "amount": priced_amount, "receiver_id": env::signer_account_id() })
+                        .to_string()
+                        .into_bytes(),
+                    FT_TRANSFER_BOND,
+                    GAS_FT_TRANSFER,
+                );
+
+                // @TODO create ft_transfer callback to verify that CT funds went through
+
+                self.update_outcome_token(&outcome_token);
+                self.update_outcome_tokens_prices(outcome_id, false);
+
+                return outcome_token.total_supply();
+            }
+            None => 0.0,
         }
     }
 
@@ -167,58 +224,11 @@ impl Market {
                 // - 1.5% goes to LPs
                 // - 0.5% goes to the user who created the market
                 let amount_minus_fee = amount * (1.0 - self.lp_fee);
-                outcome_token.lp_pool_buy(&sender_id, amount_minus_fee);
+                let priced_amount = outcome_token.get_price() * amount_minus_fee;
+                outcome_token.lp_pool_buy(&sender_id, priced_amount);
+
                 self.update_outcome_token(&outcome_token);
                 self.update_outcome_tokens_prices(payload.outcome_id, true);
-
-                return outcome_token.total_supply();
-            }
-            None => 0.0,
-        }
-    }
-
-    /**
-     * An account may sell their bet and get their CT back
-     * No lp_fee is charged on this transaction
-     *
-     * Transfers CT amount to the account if their OT amount <= balance
-     *
-     * Decrements the price of the selected OT by the predefined ratio
-     * Increments the price of the other OTs by the predefined ratio
-     * SUM of PRICES MUST EQUAL 1!!
-     *
-     * Decrements the balance of OT in the account's balance
-     * Increments the balance of OT in the OT LP pool balance
-     *
-     * @notice only while the market is open
-     *
-     * @returns
-     */
-    #[payable]
-    pub fn sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
-        self.assert_is_published();
-        self.assert_is_open();
-        self.assert_is_valid_outcome(outcome_id);
-
-        match self.outcome_tokens.get(&outcome_id) {
-            Some(token) => {
-                let mut outcome_token = token;
-
-                outcome_token.lp_pool_sell(&env::signer_account_id(), amount);
-
-                Promise::new(self.collateral_token_account_id.clone()).function_call(
-                    "ft_transfer".to_string(),
-                    json!({ "amount": amount, "receiver_id": env::signer_account_id() })
-                        .to_string()
-                        .into_bytes(),
-                    FT_TRANSFER_BOND,
-                    GAS_FT_TRANSFER,
-                );
-
-                // @TODO create ft_transfer callback to verify that CT funds went through
-
-                self.update_outcome_token(&outcome_token);
-                self.update_outcome_tokens_prices(outcome_id, false);
 
                 return outcome_token.total_supply();
             }

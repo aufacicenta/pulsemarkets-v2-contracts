@@ -45,6 +45,7 @@ mod tests {
 
     fn add_liquidity(
         c: &mut Market,
+        collateral_token_balance: &mut WrappedBalance,
         account_id: AccountId,
         amount: WrappedBalance,
         outcome_id: u64,
@@ -56,6 +57,7 @@ mod tests {
         });
 
         c.ft_on_transfer(account_id, amount, msg.to_string());
+        *collateral_token_balance += amount;
         amount
     }
 
@@ -77,14 +79,15 @@ mod tests {
         amount
     }
 
-    fn sell(
+    fn remove_liquidity(
         c: &mut Market,
         collateral_token_balance: &mut WrappedBalance,
         amount: WrappedBalance,
+        outcome_token_price: WrappedBalance,
         outcome_id: u64,
     ) -> WrappedBalance {
-        c.sell(outcome_id, amount);
-        *collateral_token_balance -= amount;
+        c.remove_liquidity(outcome_id, amount);
+        *collateral_token_balance -= outcome_token_price * amount;
         amount
     }
 
@@ -132,26 +135,16 @@ mod tests {
         assert_eq!(
             contract.status.to_string(),
             MarketStatus::Published.to_string(),
-            "Market status must be published"
+            "WRONG_MARKET_STATUS"
         );
 
         let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
 
-        assert_eq!(
-            outcome_token_0.total_supply(),
-            0.0,
-            "Initial supply must be 0"
-        );
-
-        assert_eq!(
-            outcome_token_1.total_supply(),
-            0.0,
-            "Initial supply must be 0"
-        );
-
-        assert_eq!(outcome_token_0.get_price(), 0.5, "Price must be 0.5");
-        assert_eq!(outcome_token_1.get_price(), 0.5, "Price must be 0.5");
+        assert_eq!(outcome_token_0.total_supply(), 0.0);
+        assert_eq!(outcome_token_1.total_supply(), 0.0);
+        assert_eq!(outcome_token_0.get_price(), 0.5);
+        assert_eq!(outcome_token_1.get_price(), 0.5);
     }
 
     #[test]
@@ -174,51 +167,26 @@ mod tests {
 
         assert_eq!(
             contract.status.to_string(),
-            MarketStatus::Published.to_string(),
-            "Market status must be published"
+            MarketStatus::Published.to_string()
         );
 
         let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
         let outcome_token_2: OutcomeToken = contract.get_outcome_token(2);
 
-        assert_eq!(
-            outcome_token_0.total_supply(),
-            0.0,
-            "Initial supply must be 0"
-        );
+        assert_eq!(outcome_token_0.total_supply(), 0.0);
+        assert_eq!(outcome_token_1.total_supply(), 0.0);
+        assert_eq!(outcome_token_2.total_supply(), 0.0);
 
-        assert_eq!(
-            outcome_token_1.total_supply(),
-            0.0,
-            "Initial supply must be 0"
-        );
-
-        assert_eq!(
-            outcome_token_2.total_supply(),
-            0.0,
-            "Initial supply must be 0"
-        );
-
-        assert_eq!(
-            outcome_token_0.get_price(),
-            0.3333333333333333,
-            "Price must be 0.3333333333333333"
-        );
-        assert_eq!(
-            outcome_token_1.get_price(),
-            0.3333333333333333,
-            "Price must be 0.3333333333333333"
-        );
-        assert_eq!(
-            outcome_token_2.get_price(),
-            0.3333333333333333,
-            "Price must be 0.3333333333333333"
-        );
+        assert_eq!(outcome_token_0.get_price(), 0.3333333333333333);
+        assert_eq!(outcome_token_1.get_price(), 0.3333333333333333);
+        assert_eq!(outcome_token_2.get_price(), 0.3333333333333333);
     }
 
     #[test]
     fn test_add_liquidity() {
+        let mut collateral_token_balance: f64 = 0.0;
+
         let starts_at = add_expires_at_nanos(100);
         let ends_at = add_expires_at_nanos(1000);
         let resolution_window = 3000;
@@ -235,45 +203,98 @@ mod tests {
 
         contract.publish();
 
-        let msg = serde_json::json!({
-            "AddLiquidityArgs": {
-                "outcome_id": 0,
-            }
-        });
-
-        contract.ft_on_transfer(alice(), 10.into(), msg.to_string());
+        add_liquidity(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            100.0,
+            0,
+        );
 
         let mut outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let mut outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
 
-        assert_eq!(outcome_token_0.total_supply(), 10.0, "Supply must be 10");
-        assert_eq!(outcome_token_1.total_supply(), 0.0, "Supply must be 0");
+        assert_eq!(outcome_token_0.total_supply(), 50.0);
+        assert_eq!(outcome_token_1.total_supply(), 0.0);
 
-        assert_eq!(
-            outcome_token_0.get_lp_balance(&alice()),
-            10.0,
-            "Balance must be 10"
+        assert_eq!(outcome_token_0.get_lp_balance(&alice()), 50.0);
+
+        assert_eq!(outcome_token_0.get_price(), 0.51);
+        assert_eq!(outcome_token_1.get_price(), 0.49);
+
+        add_liquidity(
+            &mut contract,
+            &mut collateral_token_balance,
+            bob(),
+            100.0,
+            0,
         );
 
         outcome_token_0 = contract.get_outcome_token(0);
         outcome_token_1 = contract.get_outcome_token(1);
 
-        assert_eq!(outcome_token_0.get_price(), 0.51, "Price must be 0.51");
-        assert_eq!(outcome_token_1.get_price(), 0.49, "Price must be 0.49");
+        assert_eq!(outcome_token_0.get_lp_balance(&bob()), 49.0);
+        assert_eq!(outcome_token_0.get_price(), 0.52);
+        assert_eq!(outcome_token_1.get_price(), 0.48);
+    }
 
-        contract.ft_on_transfer(bob(), 10.into(), msg.to_string());
+    #[test]
+    fn test_remove_liquidity() {
+        let mut collateral_token_balance: f64 = 0.0;
 
-        outcome_token_0 = contract.get_outcome_token(0);
-        outcome_token_1 = contract.get_outcome_token(1);
+        let starts_at = add_expires_at_nanos(100);
+        let ends_at = add_expires_at_nanos(1000);
+        let resolution_window = 3000;
 
-        assert_eq!(
-            outcome_token_0.get_lp_balance(&bob()),
-            10.0,
-            "Balance must be 10"
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at,
+            ends_at,
+            resolution_window,
         );
 
-        assert_eq!(outcome_token_0.get_price(), 0.52, "Price must be 0.52");
-        assert_eq!(outcome_token_1.get_price(), 0.48, "Price must be 0.48");
+        let mut contract: Market = setup_contract(market_data);
+
+        contract.publish();
+
+        add_liquidity(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            200.0,
+            0,
+        );
+
+        add_liquidity(
+            &mut contract,
+            &mut collateral_token_balance,
+            bob(),
+            200.0,
+            0,
+        );
+
+        let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
+
+        assert_eq!(outcome_token_0.get_price(), 0.52);
+        assert_eq!(collateral_token_balance, 400.0);
+
+        assert_eq!(outcome_token_0.get_lp_balance(&alice()), 100.0);
+        assert_eq!(outcome_token_0.get_lp_balance(&bob()), 98.0);
+
+        let mut context = setup_context();
+        testing_env!(context.signer_account_id(alice()).build());
+
+        remove_liquidity(
+            &mut contract,
+            &mut collateral_token_balance,
+            100.0,
+            outcome_token_0.get_price(),
+            0,
+        );
+
+        assert_eq!(outcome_token_0.get_lp_balance(&alice()), 0.0);
+        assert_eq!(collateral_token_balance, 348.0);
     }
 
     #[test]
@@ -296,38 +317,35 @@ mod tests {
 
         contract.publish();
 
-        collateral_token_balance += add_liquidity(&mut contract, alice(), 100.0, 0);
-        collateral_token_balance += add_liquidity(&mut contract, bob(), 100.0, 0);
+        add_liquidity(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            100.0,
+            0,
+        );
+
+        add_liquidity(
+            &mut contract,
+            &mut collateral_token_balance,
+            bob(),
+            100.0,
+            0,
+        );
 
         let mut outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let mut outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
 
-        assert_eq!(outcome_token_0.total_supply(), 200.0, "Supply must be 200");
-        assert_eq!(outcome_token_1.total_supply(), 0.0, "Supply must be 0");
-        assert_eq!(outcome_token_0.get_price(), 0.52, "Price must be 0.52");
-        assert_eq!(outcome_token_1.get_price(), 0.48, "Price must be 0.48");
-        assert_eq!(
-            collateral_token_balance, 200.0,
-            "Collateral token balance must be 200.0"
-        );
+        assert_eq!(outcome_token_0.total_supply(), 99.0);
+        assert_eq!(outcome_token_1.total_supply(), 0.0);
+        assert_eq!(outcome_token_0.get_price(), 0.52);
+        assert_eq!(outcome_token_1.get_price(), 0.48);
+        assert_eq!(collateral_token_balance, 200.0);
 
-        assert_eq!(
-            outcome_token_0.get_lp_balance(&alice()),
-            100.0,
-            "Balance must be 100"
-        );
+        assert_eq!(outcome_token_0.get_lp_balance(&alice()), 50.0);
+        assert_eq!(outcome_token_0.get_lp_balance(&bob()), 49.0);
 
-        assert_eq!(
-            outcome_token_0.get_lp_balance(&bob()),
-            100.0,
-            "Balance must be 100"
-        );
-
-        assert_eq!(
-            outcome_token_0.get_lp_pool_balance(),
-            200.0,
-            "LP pool balance must be 200"
-        );
+        assert_eq!(outcome_token_0.get_lp_pool_balance(), 99.0);
 
         // Open the market
         let mut context = setup_context();
@@ -345,43 +363,17 @@ mod tests {
         outcome_token_0 = contract.get_outcome_token(0);
         outcome_token_1 = contract.get_outcome_token(1);
 
-        assert_eq!(
-            outcome_token_0.get_lp_pool_balance(),
-            102.0,
-            "LP pool balance must be 102"
-        );
+        assert_eq!(outcome_token_0.get_lp_pool_balance(), 48.04);
+        assert_eq!(outcome_token_0.get_balance(&carol()), 50.96);
 
-        assert_eq!(
-            outcome_token_0.get_balance(&carol()),
-            98.0,
-            "Buy balance must be 98"
-        );
+        assert_eq!(outcome_token_0.get_lp_balance(&alice()), 24.26262626262626);
+        assert_eq!(outcome_token_0.get_lp_balance(&bob()), 23.777373737373736);
 
-        assert_eq!(
-            outcome_token_0.get_lp_balance(&alice()),
-            51.0,
-            "LP balance must be 51.0"
-        );
+        assert_eq!(outcome_token_0.get_price(), 0.53);
+        assert_eq!(outcome_token_1.get_price(), 0.47);
 
-        assert_eq!(
-            outcome_token_0.get_lp_balance(&bob()),
-            51.0,
-            "LP balance must be 51.0"
-        );
-
-        assert_eq!(outcome_token_0.get_price(), 0.53, "OT price must be 0.53");
-        assert_eq!(outcome_token_1.get_price(), 0.47, "OT price must be 0.47");
-
-        assert_eq!(
-            outcome_token_0.total_supply(),
-            200.0,
-            "Total supply must be 200.0"
-        );
-
-        assert_eq!(
-            collateral_token_balance, 300.0,
-            "Collateral token balance must be 300.0"
-        );
+        assert_eq!(outcome_token_0.total_supply(), 99.0);
+        assert_eq!(collateral_token_balance, 300.0);
 
         // Keep buying so that there's no lp_pool_balance, what should happen?
         buy(
@@ -390,90 +382,6 @@ mod tests {
             carol(),
             200.0,
             0,
-        );
-    }
-
-    #[test]
-    fn test_sell() {
-        let mut collateral_token_balance: f64 = 0.0;
-
-        let starts_at = add_expires_at_nanos(100);
-        let ends_at = add_expires_at_nanos(1000);
-        let resolution_window = 3000;
-
-        let market_data: MarketData = create_market_data(
-            "a market description".to_string(),
-            2,
-            starts_at,
-            ends_at,
-            resolution_window,
-        );
-
-        let mut contract: Market = setup_contract(market_data);
-
-        contract.publish();
-
-        collateral_token_balance += add_liquidity(&mut contract, alice(), 100.0, 0);
-        collateral_token_balance += add_liquidity(&mut contract, bob(), 100.0, 0);
-
-        // Open the market
-        let mut context = setup_context();
-        let now = (starts_at + 200) as u32;
-        testing_env!(context.block_timestamp(now.into()).build());
-
-        buy(
-            &mut contract,
-            &mut collateral_token_balance,
-            carol(),
-            100.0,
-            0,
-        );
-
-        testing_env!(context.signer_account_id(carol()).build());
-        sell(&mut contract, &mut collateral_token_balance, 50.0, 0);
-
-        let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
-
-        assert_eq!(
-            outcome_token_0.get_balance(&carol()),
-            48.0,
-            "Balance must be 48.0"
-        );
-
-        assert_eq!(
-            outcome_token_0.get_lp_balance(&alice()),
-            76.0,
-            "Balance must be 76.0"
-        );
-
-        assert_eq!(
-            outcome_token_0.get_lp_balance(&bob()),
-            76.0,
-            "Balance must be 76.0"
-        );
-
-        assert_eq!(
-            outcome_token_0.get_lp_pool_balance(),
-            52.0,
-            "LP pool balance must be 52.0"
-        );
-
-        assert_eq!(
-            collateral_token_balance, 250.0,
-            "Collateral token balance must be 250.0"
-        );
-
-        sell(&mut contract, &mut collateral_token_balance, 48.0, 0);
-
-        assert_eq!(
-            outcome_token_0.get_balance(&carol()),
-            0.0,
-            "Balance must be 0.0"
-        );
-
-        assert_eq!(
-            collateral_token_balance, 202.0,
-            "Collateral token balance must be 202.0"
         );
     }
 }

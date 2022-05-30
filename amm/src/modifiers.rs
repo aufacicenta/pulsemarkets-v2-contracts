@@ -12,7 +12,7 @@ impl Market {
 
     pub fn assert_is_closed(&self) {
         if self.is_open() {
-            env::panic_str("ERR_MARKET_IS_CLOSED");
+            env::panic_str("ERR_MARKET_IS_OPEN");
         }
     }
 
