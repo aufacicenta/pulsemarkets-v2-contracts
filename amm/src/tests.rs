@@ -61,6 +61,7 @@ mod tests {
 
     fn buy(
         c: &mut Market,
+        collateral_token_balance: &mut WrappedBalance,
         account_id: AccountId,
         amount: WrappedBalance,
         outcome_id: u64,
@@ -72,6 +73,18 @@ mod tests {
         });
 
         c.ft_on_transfer(account_id, amount, msg.to_string());
+        *collateral_token_balance += amount;
+        amount
+    }
+
+    fn sell(
+        c: &mut Market,
+        collateral_token_balance: &mut WrappedBalance,
+        amount: WrappedBalance,
+        outcome_id: u64,
+    ) -> WrappedBalance {
+        c.sell(outcome_id, amount);
+        *collateral_token_balance -= amount;
         amount
     }
 
@@ -321,7 +334,13 @@ mod tests {
         let now = (starts_at + 200) as u32;
         testing_env!(context.block_timestamp(now.into()).build());
 
-        collateral_token_balance += buy(&mut contract, carol(), 100.0, 0);
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            carol(),
+            100.0,
+            0,
+        );
 
         outcome_token_0 = contract.get_outcome_token(0);
         outcome_token_1 = contract.get_outcome_token(1);
@@ -365,6 +384,96 @@ mod tests {
         );
 
         // Keep buying so that there's no lp_pool_balance, what should happen?
-        collateral_token_balance += buy(&mut contract, carol(), 200.0, 0);
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            carol(),
+            200.0,
+            0,
+        );
+    }
+
+    #[test]
+    fn test_sell() {
+        let mut collateral_token_balance: f64 = 0.0;
+
+        let starts_at = add_expires_at_nanos(100);
+        let ends_at = add_expires_at_nanos(1000);
+        let resolution_window = 3000;
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at,
+            ends_at,
+            resolution_window,
+        );
+
+        let mut contract: Market = setup_contract(market_data);
+
+        contract.publish();
+
+        collateral_token_balance += add_liquidity(&mut contract, alice(), 100.0, 0);
+        collateral_token_balance += add_liquidity(&mut contract, bob(), 100.0, 0);
+
+        // Open the market
+        let mut context = setup_context();
+        let now = (starts_at + 200) as u32;
+        testing_env!(context.block_timestamp(now.into()).build());
+
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            carol(),
+            100.0,
+            0,
+        );
+
+        testing_env!(context.signer_account_id(carol()).build());
+        sell(&mut contract, &mut collateral_token_balance, 50.0, 0);
+
+        let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
+
+        assert_eq!(
+            outcome_token_0.get_balance(&carol()),
+            48.0,
+            "Balance must be 48.0"
+        );
+
+        assert_eq!(
+            outcome_token_0.get_lp_balance(&alice()),
+            76.0,
+            "Balance must be 76.0"
+        );
+
+        assert_eq!(
+            outcome_token_0.get_lp_balance(&bob()),
+            76.0,
+            "Balance must be 76.0"
+        );
+
+        assert_eq!(
+            outcome_token_0.get_lp_pool_balance(),
+            52.0,
+            "LP pool balance must be 52.0"
+        );
+
+        assert_eq!(
+            collateral_token_balance, 250.0,
+            "Collateral token balance must be 250.0"
+        );
+
+        sell(&mut contract, &mut collateral_token_balance, 48.0, 0);
+
+        assert_eq!(
+            outcome_token_0.get_balance(&carol()),
+            0.0,
+            "Balance must be 0.0"
+        );
+
+        assert_eq!(
+            collateral_token_balance, 202.0,
+            "Collateral token balance must be 202.0"
+        );
     }
 }

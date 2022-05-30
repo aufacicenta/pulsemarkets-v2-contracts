@@ -109,7 +109,7 @@ impl Market {
     ) -> WrappedBalance {
         self.assert_is_published();
         self.assert_is_closed();
-        self.assert_valid_outcome(payload.outcome_id);
+        self.assert_is_valid_outcome(payload.outcome_id);
 
         match self.outcome_tokens.get(&payload.outcome_id) {
             Some(token) => {
@@ -117,7 +117,7 @@ impl Market {
 
                 outcome_token.mint(&sender_id, amount);
                 self.update_outcome_token(&outcome_token);
-                self.update_outcome_tokens_prices(payload.outcome_id);
+                self.update_outcome_tokens_prices(payload.outcome_id, true);
 
                 return outcome_token.total_supply();
             }
@@ -155,7 +155,7 @@ impl Market {
     ) -> WrappedBalance {
         self.assert_is_published();
         self.assert_is_open();
-        self.assert_valid_outcome(payload.outcome_id);
+        self.assert_is_valid_outcome(payload.outcome_id);
 
         match self.outcome_tokens.get(&payload.outcome_id) {
             Some(token) => {
@@ -167,9 +167,9 @@ impl Market {
                 // - 1.5% goes to LPs
                 // - 0.5% goes to the user who created the market
                 let amount_minus_fee = amount * (1.0 - self.lp_fee);
-                outcome_token.lp_pool_transfer(&sender_id, amount_minus_fee);
+                outcome_token.lp_pool_buy(&sender_id, amount_minus_fee);
                 self.update_outcome_token(&outcome_token);
-                self.update_outcome_tokens_prices(payload.outcome_id);
+                self.update_outcome_tokens_prices(payload.outcome_id, true);
 
                 return outcome_token.total_supply();
             }
@@ -195,7 +195,36 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn sell(&mut self, _outcome_id: OutcomeId, _amount: u64) {}
+    pub fn sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
+        self.assert_is_published();
+        self.assert_is_open();
+        self.assert_is_valid_outcome(outcome_id);
+
+        match self.outcome_tokens.get(&outcome_id) {
+            Some(token) => {
+                let mut outcome_token = token;
+
+                outcome_token.lp_pool_sell(&env::signer_account_id(), amount);
+
+                Promise::new(self.collateral_token_account_id.clone()).function_call(
+                    "ft_transfer".to_string(),
+                    json!({ "amount": amount, "receiver_id": env::signer_account_id() })
+                        .to_string()
+                        .into_bytes(),
+                    FT_TRANSFER_BOND,
+                    GAS_FT_TRANSFER,
+                );
+
+                // @TODO create ft_transfer callback to verify that CT funds went through
+
+                self.update_outcome_token(&outcome_token);
+                self.update_outcome_tokens_prices(outcome_id, false);
+
+                return outcome_token.total_supply();
+            }
+            None => 0.0,
+        }
+    }
 
     /**
      * Closes the market
@@ -277,20 +306,28 @@ impl Market {
         1 as Price / self.market.options.len() as Price
     }
 
-    fn update_outcome_tokens_prices(&mut self, outcome_id: OutcomeId) {
+    fn update_outcome_tokens_prices(&mut self, outcome_id: OutcomeId, increase: bool) {
         let mut k: Price = 0.0;
 
         for id in 0..self.market.options.len() {
-            self.assert_valid_outcome(id as OutcomeId);
+            self.assert_is_valid_outcome(id as OutcomeId);
 
             match self.outcome_tokens.get(&(id as OutcomeId)) {
                 Some(token) => {
                     let mut outcome_token = token;
 
                     if outcome_token.outcome_id == outcome_id {
-                        outcome_token.increase_price(self.price_ratio);
+                        if increase {
+                            outcome_token.increase_price(self.price_ratio);
+                        } else {
+                            outcome_token.decrease_price(self.price_ratio);
+                        }
                     } else {
-                        outcome_token.decrease_price(self.price_ratio);
+                        if increase {
+                            outcome_token.decrease_price(self.price_ratio);
+                        } else {
+                            outcome_token.increase_price(self.price_ratio);
+                        }
                     }
 
                     self.update_outcome_token(&outcome_token);
