@@ -75,6 +75,8 @@ impl Market {
             outcome_id += 1;
         }
 
+        self.assert_aggregated_price_is_1();
+
         self.status = MarketStatus::Published;
     }
 
@@ -160,11 +162,10 @@ impl Market {
             Some(token) => {
                 let mut outcome_token = token;
 
+                // @TODO charge LP_FEE to amount
                 outcome_token.lp_pool_transfer(&sender_id, amount);
                 self.update_outcome_token(&outcome_token);
                 self.update_outcome_tokens_prices(payload.outcome_id);
-
-                // @TODO charge LP_FEE
 
                 return outcome_token.total_supply();
             }

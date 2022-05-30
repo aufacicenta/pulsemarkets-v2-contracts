@@ -16,6 +16,23 @@ impl Market {
         }
     }
 
+    pub fn assert_aggregated_price_is_1(&self) {
+        let mut k: Price = 0.0;
+
+        for id in 0..self.market.options.len() {
+            self.assert_valid_outcome(id as OutcomeId);
+
+            match self.outcome_tokens.get(&(id as OutcomeId)) {
+                Some(token) => {
+                    k += token.get_price();
+                }
+                None => {}
+            }
+        }
+
+        assert_eq!(k, 1.0, "ERR_PRICE_CONSTANT_SHOULD_EQ_1");
+    }
+
     pub fn assert_is_open(&self) {
         if !self.is_open() {
             env::panic_str("ERR_MARKET_IS_CLOSED");

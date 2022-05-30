@@ -10,7 +10,7 @@ mod tests {
     const _ATTACHED_DEPOSIT: Balance = 1_000_000_000_000_000_000_000_000; // 1 Near
 
     const LP_FEE: f64 = 0.02;
-    const PRICE_RATIO: f64 = 0.1;
+    const PRICE_RATIO: f64 = 0.01;
 
     fn dao_account_id() -> AccountId {
         AccountId::new_unchecked("dao_account_id.near".to_string())
@@ -213,8 +213,8 @@ mod tests {
         outcome_token_0 = contract.get_outcome_token(0);
         outcome_token_1 = contract.get_outcome_token(1);
 
-        assert_eq!(outcome_token_0.get_price(), 0.6, "Price must be 0.6");
-        assert_eq!(outcome_token_1.get_price(), 0.4, "Price must be 0.4");
+        assert_eq!(outcome_token_0.get_price(), 0.51, "Price must be 0.51");
+        assert_eq!(outcome_token_1.get_price(), 0.49, "Price must be 0.49");
 
         contract.ft_on_transfer(bob(), 10.into(), msg.to_string());
 
@@ -227,13 +227,8 @@ mod tests {
             "Balance must be 10"
         );
 
-        assert_eq!(outcome_token_0.get_price(), 0.7, "Price must be 0.7");
-
-        assert_eq!(
-            outcome_token_1.get_price(),
-            0.30000000000000004,
-            "Price must be 0.30000000000000004"
-        );
+        assert_eq!(outcome_token_0.get_price(), 0.52, "Price must be 0.52");
+        assert_eq!(outcome_token_1.get_price(), 0.48, "Price must be 0.48");
     }
 
     #[test]
@@ -268,6 +263,8 @@ mod tests {
 
         assert_eq!(outcome_token_0.total_supply(), 200.0, "Supply must be 200");
         assert_eq!(outcome_token_1.total_supply(), 0.0, "Supply must be 0");
+        assert_eq!(outcome_token_0.get_price(), 0.52, "Price must be 0.52");
+        assert_eq!(outcome_token_1.get_price(), 0.48, "Price must be 0.48");
 
         assert_eq!(
             outcome_token_0.get_lp_balance(&alice()),
@@ -301,6 +298,7 @@ mod tests {
         contract.ft_on_transfer(carol(), 100.into(), msg.to_string());
 
         outcome_token_0 = contract.get_outcome_token(0);
+        outcome_token_1 = contract.get_outcome_token(1);
 
         assert_eq!(
             outcome_token_0.get_lp_pool_balance(),
@@ -326,6 +324,7 @@ mod tests {
             "LP balance must be 50.0"
         );
 
-        // outcome_token_1 = contract.get_outcome_token(1);
+        assert_eq!(outcome_token_0.get_price(), 0.53, "OT price must be 0.53");
+        assert_eq!(outcome_token_1.get_price(), 0.47, "OT price must be 0.47");
     }
 }
