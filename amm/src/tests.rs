@@ -3,7 +3,7 @@ mod tests {
     use crate::storage::*;
     use crate::FungibleTokenReceiver;
     use chrono::Utc;
-    use near_sdk::test_utils::test_env::{alice, bob};
+    use near_sdk::test_utils::test_env::{alice, bob, carol};
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::{serde_json, testing_env, AccountId, Balance};
 
@@ -20,7 +20,7 @@ mod tests {
         AccountId::new_unchecked("collateral_token_id.near".to_string())
     }
 
-    fn _setup_context() -> VMContextBuilder {
+    fn setup_context() -> VMContextBuilder {
         let mut context = VMContextBuilder::new();
         let now = Utc::now().timestamp_subsec_nanos();
         testing_env!(context
@@ -234,5 +234,98 @@ mod tests {
             0.30000000000000004,
             "Price must be 0.30000000000000004"
         );
+    }
+
+    #[test]
+    fn buy() {
+        let starts_at = add_expires_at_nanos(100);
+        let ends_at = add_expires_at_nanos(1000);
+        let resolution_window = 3000;
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at,
+            ends_at,
+            resolution_window,
+        );
+
+        let mut contract: Market = setup_contract(market_data);
+
+        contract.publish();
+
+        let mut msg = serde_json::json!({
+            "AddLiquidityArgs": {
+                "outcome_id": 0,
+            }
+        });
+
+        contract.ft_on_transfer(alice(), 100.into(), msg.to_string());
+        contract.ft_on_transfer(bob(), 100.into(), msg.to_string());
+
+        let mut outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
+        let mut outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
+
+        assert_eq!(outcome_token_0.total_supply(), 200, "Supply must be 200");
+        assert_eq!(outcome_token_1.total_supply(), 0, "Supply must be 0");
+
+        assert_eq!(
+            outcome_token_0.get_lp_balance(&alice()),
+            100,
+            "Balance must be 100"
+        );
+
+        assert_eq!(
+            outcome_token_0.get_lp_balance(&bob()),
+            100,
+            "Balance must be 100"
+        );
+
+        assert_eq!(
+            outcome_token_0.get_lp_pool_balance(),
+            200,
+            "LP pool balance must be 200"
+        );
+
+        // Open the market
+        let mut context = setup_context();
+        let now = (starts_at + 200) as u32;
+        testing_env!(context.block_timestamp(now.into()).build());
+
+        msg = serde_json::json!({
+            "BuyArgs": {
+                "outcome_id": 0,
+            }
+        });
+
+        contract.ft_on_transfer(carol(), 100.into(), msg.to_string());
+
+        outcome_token_0 = contract.get_outcome_token(0);
+
+        assert_eq!(
+            outcome_token_0.get_lp_pool_balance(),
+            100,
+            "LP pool balance must be 100"
+        );
+
+        assert_eq!(
+            outcome_token_0.get_balance(&carol()),
+            100,
+            "Buy balance must be 100"
+        );
+
+        assert_eq!(
+            outcome_token_0.get_lp_balance(&alice()),
+            50,
+            "LP balance must be 0"
+        );
+
+        assert_eq!(
+            outcome_token_0.get_lp_balance(&bob()),
+            50,
+            "LP balance must be 50"
+        );
+
+        // outcome_token_1 = contract.get_outcome_token(1);
     }
 }

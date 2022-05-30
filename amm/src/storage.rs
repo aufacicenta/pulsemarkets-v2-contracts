@@ -71,6 +71,8 @@ pub struct OutcomeToken {
     pub balances: LookupMap<AccountId, Balance>,
     // keep track of LP balances on mint and burn
     pub lp_balances: UnorderedMap<AccountId, Balance>,
+    // keep track of LP balances on mint and burn
+    pub lp_pool_balance: Balance,
     // total supply of this outcome_token
     pub total_supply: Balance,
     // the outcome this token represents, used for storage pointers

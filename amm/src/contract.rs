@@ -155,20 +155,13 @@ impl Market {
             Some(token) => {
                 let mut outcome_token = token;
 
-                match outcome_token.get_lp_account() {
-                    Some(lp_account_id) => {
-                        outcome_token.safe_transfer_internal(&lp_account_id, &sender_id, amount);
-                        self.update_outcome_token(&outcome_token);
+                outcome_token.lp_pool_transfer(&sender_id, amount);
+                self.update_outcome_token(&outcome_token);
+                self.update_outcome_tokens_prices(payload.outcome_id);
 
-                        // @TODO charge LP_FEE
+                // @TODO charge LP_FEE
 
-                        self.update_outcome_tokens_prices(payload.outcome_id);
-
-                        return outcome_token.total_supply();
-                    }
-                    // @TODO the buyer becomes a LP, mints remaining amount if any
-                    None => 0,
-                }
+                return outcome_token.total_supply();
             }
             None => 0,
         }

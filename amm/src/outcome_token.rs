@@ -23,6 +23,7 @@ impl OutcomeToken {
             total_supply: initial_supply,
             balances: LookupMap::new(format!("OT:{}", outcome_id).as_bytes().to_vec()),
             lp_balances: UnorderedMap::new(format!("LP:{}", outcome_id).as_bytes().to_vec()),
+            lp_pool_balance: 0,
             outcome_id,
             price,
         }
@@ -35,8 +36,9 @@ impl OutcomeToken {
      */
     pub fn mint(&mut self, account_id: &AccountId, amount: Balance) {
         self.total_supply += amount;
-        let account_balance = self.lp_balances.get(account_id).unwrap_or(0);
-        let new_balance = account_balance + amount;
+        let lp_balance = self.lp_balances.get(account_id).unwrap_or(0);
+        let new_balance = lp_balance + amount;
+        self.lp_pool_balance += amount;
         self.lp_balances.insert(account_id, &new_balance);
     }
 
@@ -46,12 +48,13 @@ impl OutcomeToken {
      * @param amount the amount of tokens to burn
      */
     pub fn burn(&mut self, account_id: &AccountId, amount: Balance) {
-        let mut balance = self.lp_balances.get(&account_id).unwrap_or(0);
+        let mut lp_balance = self.lp_balances.get(&account_id).unwrap_or(0);
 
-        assert!(balance >= amount, "ERR_INSUFFICIENT_BALANCE");
+        assert!(lp_balance >= amount, "ERR_INSUFFICIENT_BALANCE");
 
-        balance -= amount;
-        self.lp_balances.insert(account_id, &balance);
+        lp_balance -= amount;
+        self.lp_balances.insert(account_id, &lp_balance);
+        self.lp_pool_balance -= amount;
         self.total_supply -= amount;
     }
 
@@ -79,6 +82,42 @@ impl OutcomeToken {
     ) {
         self.withdraw(sender_id, amount);
         self.deposit(receiver_id, amount);
+    }
+
+    /**
+     * @notice transfer tokens from LP pool to receiver account
+     * @notice subtract an equal amount proportion to all LPs
+     * @param receiver_id is the account that should receive the tokens
+     * @param amount of tokens to transfer from LP Pool to receiver
+     */
+    pub fn lp_pool_transfer(&mut self, receiver_id: &AccountId, amount: Balance) {
+        assert!(amount > 0, "ERR_AMOUNT_LOWER_THAN_0");
+
+        // @TODO if lp_pool_balance is not enough for amount, then mint more tokens?
+        assert!(
+            self.lp_pool_balance >= amount,
+            "ERR_LP_POOL_BALANCE_LOWER_THAN_AMOUNT"
+        );
+
+        let receiver_balance = self.balances.get(&receiver_id).unwrap_or(0);
+        let new_balance = receiver_balance + amount;
+
+        self.balances.insert(&receiver_id, &new_balance);
+
+        let lp_balances = self.lp_balances.to_vec();
+        for values in lp_balances.iter() {
+            let lp_account_id = &values.0;
+            let lp_balance = &values.1;
+            let lp_weight: f64 = (lp_balance / self.lp_pool_balance) as f64;
+            env::log_str(&*format!(
+                "lp_pool_balance: {}, lp_account_id: {}, lp_balance: {}, lp_weight: {}",
+                self.lp_pool_balance, lp_account_id, lp_balance, lp_weight
+            ));
+            let new_lp_balance = lp_balance - (amount as f64 * lp_weight);
+            self.lp_balances.insert(&lp_account_id, &new_lp_balance);
+        }
+
+        self.lp_pool_balance -= amount;
     }
 
     /**
@@ -120,6 +159,15 @@ impl OutcomeToken {
     }
 
     /**
+     * @notice returns LP account's balance
+     * @param account_id is the account_id to return the balance of
+     * @returns `accoun_id`s balance
+     */
+    pub fn get_lp_pool_balance(&self) -> Balance {
+        self.lp_pool_balance
+    }
+
+    /**
      * @notice returns account's balance
      * @param account_id is the account_id to return the balance of
      * @returns `accoun_id`s balance
@@ -133,27 +181,6 @@ impl OutcomeToken {
      */
     pub fn total_supply(&self) -> Balance {
         self.total_supply
-    }
-
-    /**
-     * @returns the next LP account_id with balance > 0
-     */
-    pub fn get_lp_account(&self) -> Option<AccountId> {
-        let mut lp_account_id: Option<AccountId> = None;
-
-        for account_id in self.lp_balances.keys() {
-            match self.lp_balances.get(&account_id.clone()) {
-                Some(balance) => {
-                    if balance > 0 {
-                        lp_account_id = Some(account_id);
-                        break;
-                    }
-                }
-                None => env::panic_str("ERR_INVALID_LP_ACCOUNT_ID"),
-            }
-        }
-
-        return lp_account_id;
     }
 }
 

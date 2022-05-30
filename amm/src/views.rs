@@ -24,8 +24,8 @@ impl Market {
     }
 
     pub fn is_open(&self) -> bool {
-        self.market.starts_at < env::block_timestamp().try_into().unwrap()
-            && self.market.ends_at >= env::block_timestamp().try_into().unwrap()
+        self.market.starts_at < env::block_timestamp()
+            && self.market.ends_at >= env::block_timestamp()
     }
 
     pub fn is_resolved(&self) -> bool {
