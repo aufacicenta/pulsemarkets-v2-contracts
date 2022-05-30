@@ -1,7 +1,7 @@
 use near_sdk::collections::LookupMap;
 use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
-use near_sdk::{env, near_bindgen, AccountId, Balance, Promise};
+use near_sdk::{env, near_bindgen, AccountId, Promise};
 use std::default::Default;
 
 use crate::consts::*;
@@ -102,9 +102,9 @@ impl Market {
     pub fn add_liquidity(
         &mut self,
         sender_id: AccountId,
-        amount: u128,
+        amount: WrappedBalance,
         payload: AddLiquidityArgs,
-    ) -> Balance {
+    ) -> WrappedBalance {
         self.assert_is_published();
         self.assert_is_closed();
         self.assert_valid_outcome(payload.outcome_id);
@@ -146,7 +146,12 @@ impl Market {
      */
     #[payable]
     #[private]
-    pub fn buy(&mut self, sender_id: AccountId, amount: u128, payload: BuyArgs) -> Balance {
+    pub fn buy(
+        &mut self,
+        sender_id: AccountId,
+        amount: WrappedBalance,
+        payload: BuyArgs,
+    ) -> WrappedBalance {
         self.assert_is_published();
         self.assert_is_open();
         self.assert_valid_outcome(payload.outcome_id);
@@ -163,7 +168,7 @@ impl Market {
 
                 return outcome_token.total_supply();
             }
-            None => 0,
+            None => 0.0,
         }
     }
 
@@ -259,7 +264,7 @@ impl Market {
 
     fn create_outcome_token(&mut self, outcome_id: OutcomeId) {
         let price = self.get_initial_outcome_token_price();
-        let outcome_token = OutcomeToken::new(outcome_id, 0, price);
+        let outcome_token = OutcomeToken::new(outcome_id, 0.0, price);
         self.outcome_tokens.insert(&outcome_id, &outcome_token);
     }
 

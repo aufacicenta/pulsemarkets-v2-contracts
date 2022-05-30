@@ -95,13 +95,13 @@ mod tests {
 
         assert_eq!(
             outcome_token_0.total_supply(),
-            0,
+            0.0,
             "Initial supply must be 0"
         );
 
         assert_eq!(
             outcome_token_1.total_supply(),
-            0,
+            0.0,
             "Initial supply must be 0"
         );
 
@@ -139,19 +139,19 @@ mod tests {
 
         assert_eq!(
             outcome_token_0.total_supply(),
-            0,
+            0.0,
             "Initial supply must be 0"
         );
 
         assert_eq!(
             outcome_token_1.total_supply(),
-            0,
+            0.0,
             "Initial supply must be 0"
         );
 
         assert_eq!(
             outcome_token_2.total_supply(),
-            0,
+            0.0,
             "Initial supply must be 0"
         );
 
@@ -201,12 +201,12 @@ mod tests {
         let mut outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let mut outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
 
-        assert_eq!(outcome_token_0.total_supply(), 10, "Supply must be 10");
-        assert_eq!(outcome_token_1.total_supply(), 0, "Supply must be 0");
+        assert_eq!(outcome_token_0.total_supply(), 10.0, "Supply must be 10");
+        assert_eq!(outcome_token_1.total_supply(), 0.0, "Supply must be 0");
 
         assert_eq!(
             outcome_token_0.get_lp_balance(&alice()),
-            10,
+            10.0,
             "Balance must be 10"
         );
 
@@ -223,7 +223,7 @@ mod tests {
 
         assert_eq!(
             outcome_token_0.get_lp_balance(&bob()),
-            10,
+            10.0,
             "Balance must be 10"
         );
 
@@ -266,24 +266,24 @@ mod tests {
         let mut outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let mut outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
 
-        assert_eq!(outcome_token_0.total_supply(), 200, "Supply must be 200");
-        assert_eq!(outcome_token_1.total_supply(), 0, "Supply must be 0");
+        assert_eq!(outcome_token_0.total_supply(), 200.0, "Supply must be 200");
+        assert_eq!(outcome_token_1.total_supply(), 0.0, "Supply must be 0");
 
         assert_eq!(
             outcome_token_0.get_lp_balance(&alice()),
-            100,
+            100.0,
             "Balance must be 100"
         );
 
         assert_eq!(
             outcome_token_0.get_lp_balance(&bob()),
-            100,
+            100.0,
             "Balance must be 100"
         );
 
         assert_eq!(
             outcome_token_0.get_lp_pool_balance(),
-            200,
+            200.0,
             "LP pool balance must be 200"
         );
 
@@ -304,26 +304,26 @@ mod tests {
 
         assert_eq!(
             outcome_token_0.get_lp_pool_balance(),
-            100,
+            100.0,
             "LP pool balance must be 100"
         );
 
         assert_eq!(
             outcome_token_0.get_balance(&carol()),
-            100,
+            100.0,
             "Buy balance must be 100"
         );
 
         assert_eq!(
             outcome_token_0.get_lp_balance(&alice()),
-            50,
-            "LP balance must be 0"
+            50.0,
+            "LP balance must be 50.0"
         );
 
         assert_eq!(
             outcome_token_0.get_lp_balance(&bob()),
-            50,
-            "LP balance must be 50"
+            50.0,
+            "LP balance must be 50.0"
         );
 
         // outcome_token_1 = contract.get_outcome_token(1);

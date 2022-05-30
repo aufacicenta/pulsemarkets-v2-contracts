@@ -1,4 +1,4 @@
-use near_sdk::{near_bindgen, serde_json, AccountId, Balance};
+use near_sdk::{near_bindgen, serde_json, AccountId};
 
 use crate::*;
 
@@ -9,7 +9,7 @@ pub trait FungibleTokenReceiver {
         sender_id: AccountId,
         amount: WrappedBalance,
         msg: String,
-    ) -> Balance;
+    ) -> WrappedBalance;
 }
 
 #[near_bindgen]
@@ -27,11 +27,11 @@ impl FungibleTokenReceiver for Market {
         sender_id: AccountId,
         amount: WrappedBalance,
         msg: String,
-    ) -> Balance {
+    ) -> WrappedBalance {
         self.assert_is_published();
 
-        let amount: u128 = amount.into();
-        assert!(amount > 0, "ERR_ZERO_AMOUNT");
+        let amount: f64 = amount.into();
+        assert!(amount > 0.0, "ERR_ZERO_AMOUNT");
 
         let payload: Payload = serde_json::from_str(&msg).expect("ERR_INVALID_PAYLOAD");
 

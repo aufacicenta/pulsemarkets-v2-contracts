@@ -1,10 +1,10 @@
 use near_sdk::{
     borsh::{self, BorshDeserialize, BorshSerialize},
     collections::{LookupMap, UnorderedMap},
-    json_types::{U128, U64},
+    json_types::U64,
     near_bindgen,
     serde::{Deserialize, Serialize},
-    AccountId, Balance, BorshStorageKey,
+    AccountId, BorshStorageKey,
 };
 use std::fmt;
 
@@ -14,7 +14,7 @@ pub type LiquidityProvider = AccountId;
 pub type Price = f64;
 pub type PriceRatio = f64;
 pub type WrappedTimestamp = U64;
-pub type WrappedBalance = U128;
+pub type WrappedBalance = f64;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
@@ -68,13 +68,13 @@ impl std::fmt::Display for MarketStatus {
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct OutcomeToken {
     // map `AccountId` to corresponding `Balance` in the market
-    pub balances: LookupMap<AccountId, Balance>,
+    pub balances: LookupMap<AccountId, WrappedBalance>,
     // keep track of LP balances on mint and burn
-    pub lp_balances: UnorderedMap<AccountId, Balance>,
+    pub lp_balances: UnorderedMap<AccountId, WrappedBalance>,
     // keep track of LP balances on mint and burn
-    pub lp_pool_balance: Balance,
+    pub lp_pool_balance: WrappedBalance,
     // total supply of this outcome_token
-    pub total_supply: Balance,
+    pub total_supply: WrappedBalance,
     // the outcome this token represents, used for storage pointers
     pub outcome_id: OutcomeId,
     // a value between 0 & 1
