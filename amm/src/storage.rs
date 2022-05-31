@@ -55,6 +55,12 @@ pub enum MarketStatus {
     Resolved,
 }
 
+pub enum SetPriceOptions {
+    Increase,
+    Decrease,
+    Resolve,
+}
+
 impl std::fmt::Display for MarketStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -78,7 +84,7 @@ pub struct OutcomeToken {
     // the outcome this token represents, used for storage pointers
     pub outcome_id: OutcomeId,
     // a value between 0 & 1
-    pub price: f64,
+    pub price: WrappedBalance,
 }
 
 #[derive(BorshStorageKey, BorshSerialize)]

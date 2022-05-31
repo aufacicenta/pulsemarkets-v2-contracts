@@ -10,6 +10,12 @@ impl Market {
         }
     }
 
+    pub fn assert_is_resolved(&self) {
+        if !self.is_resolved() {
+            env::panic_str("ERR_MARKET_NOT_RESOLVED");
+        }
+    }
+
     pub fn assert_is_closed(&self) {
         if self.is_open() {
             env::panic_str("ERR_MARKET_IS_OPEN");
@@ -39,9 +45,21 @@ impl Market {
         }
     }
 
+    pub fn assert_is_resolution_window_open(&self) {
+        if self.is_resolution_window_expired() {
+            env::panic_str("ERR_RESOLUTION_WINDOW_EXPIRED");
+        }
+    }
+
     pub fn assert_is_pending(&self) {
         if !self.is_pending() {
             env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");
+        }
+    }
+
+    pub fn assert_only_owner(&self) {
+        if self.dao_account_id != env::signer_account_id() {
+            env::panic_str("ERR_SIGNER_IS_NOT_OWNER");
         }
     }
 

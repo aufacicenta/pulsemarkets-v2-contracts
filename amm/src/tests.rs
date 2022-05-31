@@ -336,8 +336,6 @@ mod tests {
         let mut outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let mut outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
 
-        assert_eq!(outcome_token_0.total_supply(), 99.0);
-        assert_eq!(outcome_token_1.total_supply(), 0.0);
         assert_eq!(outcome_token_0.get_price(), 0.52);
         assert_eq!(outcome_token_1.get_price(), 0.48);
         assert_eq!(collateral_token_balance, 200.0);
@@ -346,6 +344,8 @@ mod tests {
         assert_eq!(outcome_token_0.get_lp_balance(&bob()), 49.0);
 
         assert_eq!(outcome_token_0.get_lp_pool_balance(), 99.0);
+        assert_eq!(outcome_token_0.total_supply(), 99.0);
+        assert_eq!(outcome_token_1.total_supply(), 0.0);
 
         // Open the market
         let mut context = setup_context();
@@ -363,11 +363,11 @@ mod tests {
         outcome_token_0 = contract.get_outcome_token(0);
         outcome_token_1 = contract.get_outcome_token(1);
 
-        assert_eq!(outcome_token_0.get_lp_pool_balance(), 48.04);
+        assert_eq!(outcome_token_0.get_lp_pool_balance(), 47.0);
         assert_eq!(outcome_token_0.get_balance(&carol()), 50.96);
 
-        assert_eq!(outcome_token_0.get_lp_balance(&alice()), 24.26262626262626);
-        assert_eq!(outcome_token_0.get_lp_balance(&bob()), 23.777373737373736);
+        assert_eq!(outcome_token_0.get_lp_balance(&alice()), 23.737373737373737);
+        assert_eq!(outcome_token_0.get_lp_balance(&bob()), 23.262626262626263);
 
         assert_eq!(outcome_token_0.get_price(), 0.53);
         assert_eq!(outcome_token_1.get_price(), 0.47);
@@ -375,13 +375,13 @@ mod tests {
         assert_eq!(outcome_token_0.total_supply(), 99.0);
         assert_eq!(collateral_token_balance, 300.0);
 
-        // Keep buying so that there's no lp_pool_balance, what should happen?
-        buy(
-            &mut contract,
-            &mut collateral_token_balance,
-            carol(),
-            200.0,
-            0,
-        );
+        // @TODO Keep buying so that there's no lp_pool_balance, what should happen?
+        // buy(
+        //     &mut contract,
+        //     &mut collateral_token_balance,
+        //     carol(),
+        //     200.0,
+        //     0,
+        // );
     }
 }

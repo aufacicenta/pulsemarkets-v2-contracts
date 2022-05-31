@@ -120,7 +120,7 @@ impl Market {
                 outcome_token.mint(&sender_id, priced_amount);
 
                 self.update_outcome_token(&outcome_token);
-                self.update_outcome_tokens_prices(payload.outcome_id, true);
+                self.update_outcome_tokens_prices(payload.outcome_id, SetPriceOptions::Increase);
 
                 return outcome_token.total_supply();
             }
@@ -154,6 +154,7 @@ impl Market {
         amount: WrappedBalance,
     ) -> WrappedBalance {
         self.assert_is_published();
+        // @TODO may the LP remove liquidity if the market is open too?
         self.assert_is_closed();
         self.assert_is_valid_outcome(outcome_id);
 
@@ -176,7 +177,7 @@ impl Market {
                 // @TODO create ft_transfer callback to verify that CT funds went through
 
                 self.update_outcome_token(&outcome_token);
-                self.update_outcome_tokens_prices(outcome_id, false);
+                self.update_outcome_tokens_prices(outcome_id, SetPriceOptions::Decrease);
 
                 return outcome_token.total_supply();
             }
@@ -223,12 +224,12 @@ impl Market {
                 // - 0.5% goes to $PULSE stakers
                 // - 1.5% goes to LPs
                 // - 0.5% goes to the user who created the market
-                let amount_minus_fee = amount * (1.0 - self.lp_fee);
-                let priced_amount = outcome_token.get_price() * amount_minus_fee;
-                outcome_token.lp_pool_buy(&sender_id, priced_amount);
+                let priced_amount = outcome_token.get_price() * amount;
+                let amount_minus_fee = priced_amount * (1.0 - self.lp_fee);
+                outcome_token.lp_pool_transfer(&sender_id, priced_amount, amount_minus_fee);
 
                 self.update_outcome_token(&outcome_token);
-                self.update_outcome_tokens_prices(payload.outcome_id, true);
+                self.update_outcome_tokens_prices(payload.outcome_id, SetPriceOptions::Increase);
 
                 return outcome_token.total_supply();
             }
@@ -241,16 +242,80 @@ impl Market {
      * Sets the winning OT price to 1
      * Sets the losing OT prices to 0
      *
+     * NOTE: this method could be called by ft_on_transfer by $PULSE owners only
+     *
      * @notice only after the market start_date and end_date period is over
      * @notice only by a Sputnik2 DAO Function Call Proposal!!
      *
      * @returns
      */
     #[payable]
-    pub fn resolve(&mut self, _outcome_id: OutcomeId) {}
+    pub fn resolve(&mut self, outcome_id: OutcomeId) {
+        self.assert_only_owner();
+        self.assert_is_published();
+        self.assert_is_valid_outcome(outcome_id);
+
+        // @TODO what happens if the reoslution window expires? Resolution is no longer possible?
+        self.assert_is_resolution_window_open();
+
+        self.update_outcome_tokens_prices(outcome_id, SetPriceOptions::Resolve);
+        self.status = MarketStatus::Resolved;
+    }
 
     /**
-     * Lets LPs and accounts redeem their CTs
+     * Lets accounts redeem their CTs
+     *
+     * Transfers CT to the account if > 0
+     * Decrements the balance of OT in the account's balance
+     *
+     * Transfers CT to the LP account if > 0
+     * Decrements the balance of OT in the OT LP pool balance
+     *
+     * Will transfer the proportional CT to the account because the price is 1, so
+     * make a calculation of the account CT balance and the closing price and transfer the difference, eg 1 - closing price
+     *
+     * @notice only after the market is resolved
+     *
+     * @returns
+     */
+    #[payable]
+    pub fn redeem(&mut self, outcome_id: OutcomeId) -> WrappedBalance {
+        self.assert_is_resolved();
+        self.assert_is_valid_outcome(outcome_id);
+
+        match self.outcome_tokens.get(&outcome_id) {
+            Some(token) => {
+                let outcome_token = token;
+
+                if outcome_token.get_price() == 0.0 {
+                    env::panic_str("ERR_OUTCOME_TOKEN_PRICE_IS_0");
+                }
+
+                let balance = outcome_token.get_balance(&env::signer_account_id());
+
+                if balance <= 0.0 {
+                    env::panic_str("ERR_REDEEM_BALANCE_IS_0");
+                }
+
+                let priced_amount = outcome_token.get_price() * balance;
+
+                Promise::new(self.collateral_token_account_id.clone()).function_call(
+                    "ft_transfer".to_string(),
+                    json!({ "amount": priced_amount, "receiver_id": env::signer_account_id() })
+                        .to_string()
+                        .into_bytes(),
+                    FT_TRANSFER_BOND,
+                    GAS_FT_TRANSFER,
+                );
+
+                return priced_amount;
+            }
+            None => 0.0,
+        }
+    }
+
+    /**
+     * Lets LPs redeem their CTs
      *
      * Transfers CT to the account if > 0
      * Decrements the balance of OT in the account's balance
@@ -266,7 +331,46 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn redeem(&mut self) {}
+    pub fn lp_redeem(&mut self, outcome_id: OutcomeId) -> WrappedBalance {
+        self.assert_is_resolved();
+        self.assert_is_valid_outcome(outcome_id);
+
+        match self.outcome_tokens.get(&outcome_id) {
+            Some(token) => {
+                let mut outcome_token = token;
+
+                if outcome_token.get_price() == 0.0 {
+                    env::panic_str("ERR_OUTCOME_TOKEN_PRICE_IS_0");
+                }
+
+                let balance = outcome_token.get_balance(&env::signer_account_id());
+
+                if balance <= 0.0 {
+                    env::panic_str("ERR_REDEEM_BALANCE_IS_0");
+                }
+
+                outcome_token.safe_withdraw_internal(&env::signer_account_id(), balance);
+
+                let priced_amount = outcome_token.get_price() * balance;
+
+                Promise::new(self.collateral_token_account_id.clone()).function_call(
+                    "ft_transfer".to_string(),
+                    json!({ "amount": priced_amount, "receiver_id": env::signer_account_id() })
+                        .to_string()
+                        .into_bytes(),
+                    FT_TRANSFER_BOND,
+                    GAS_FT_TRANSFER,
+                );
+
+                // @TODO create ft_transfer callback to verify that CT funds went through
+
+                self.update_outcome_token(&outcome_token);
+
+                return priced_amount;
+            }
+            None => 0.0,
+        }
+    }
 }
 
 impl Market {
@@ -316,7 +420,11 @@ impl Market {
         1 as Price / self.market.options.len() as Price
     }
 
-    fn update_outcome_tokens_prices(&mut self, outcome_id: OutcomeId, increase: bool) {
+    fn update_outcome_tokens_prices(
+        &mut self,
+        outcome_id: OutcomeId,
+        set_price_option: SetPriceOptions,
+    ) {
         let mut k: Price = 0.0;
 
         for id in 0..self.market.options.len() {
@@ -326,17 +434,30 @@ impl Market {
                 Some(token) => {
                     let mut outcome_token = token;
 
+                    // @TODO self.price_ratio may be updated so that it doesn't reach 1
                     if outcome_token.outcome_id == outcome_id {
-                        if increase {
-                            outcome_token.increase_price(self.price_ratio);
-                        } else {
-                            outcome_token.decrease_price(self.price_ratio);
+                        match set_price_option {
+                            SetPriceOptions::Increase => {
+                                outcome_token.increase_price(self.get_price_ratio());
+                            }
+                            SetPriceOptions::Decrease => {
+                                outcome_token.decrease_price(self.get_price_ratio());
+                            }
+                            SetPriceOptions::Resolve => {
+                                outcome_token.set_price(1.0);
+                            }
                         }
                     } else {
-                        if increase {
-                            outcome_token.decrease_price(self.price_ratio);
-                        } else {
-                            outcome_token.increase_price(self.price_ratio);
+                        match set_price_option {
+                            SetPriceOptions::Increase => {
+                                outcome_token.decrease_price(self.get_price_ratio());
+                            }
+                            SetPriceOptions::Decrease => {
+                                outcome_token.increase_price(self.get_price_ratio());
+                            }
+                            SetPriceOptions::Resolve => {
+                                outcome_token.set_price(0.0);
+                            }
                         }
                     }
 
@@ -349,6 +470,10 @@ impl Market {
         }
 
         assert_eq!(k, 1.0, "ERR_PRICE_CONSTANT_SHOULD_EQ_1");
+    }
+
+    fn get_price_ratio(&self) -> f64 {
+        self.price_ratio
     }
 
     fn update_outcome_token(&mut self, outcome_token: &OutcomeToken) {

@@ -59,29 +59,12 @@ impl OutcomeToken {
     }
 
     /**
-     * @notice transfer tokens from one account to another
-     * @param receiver_id is the account that should receive the tokens
-     * @param amount of tokens to transfer from predecessor to receiver
+     * @notice update balance of account
+     * @param sender_id is the account to withdraw from
+     * @param amount of tokens to withdraw from balance
      */
-    pub fn transfer(&mut self, receiver_id: &AccountId, amount: WrappedBalance) {
-        self.withdraw(&env::predecessor_account_id(), amount);
-        self.deposit(receiver_id, amount);
-    }
-
-    /**
-     * @notice transfer tokens from one account to another
-     * @param sender is the account that's sending the tokens
-     * @param receiver_id is the account that should receive the tokens
-     * @param amount of tokens to transfer from sender to receiver
-     */
-    pub fn safe_transfer_internal(
-        &mut self,
-        sender_id: &AccountId,
-        receiver_id: &AccountId,
-        amount: WrappedBalance,
-    ) {
+    pub fn safe_withdraw_internal(&mut self, sender_id: &AccountId, amount: WrappedBalance) {
         self.withdraw(sender_id, amount);
-        self.deposit(receiver_id, amount);
     }
 
     /**
@@ -90,20 +73,28 @@ impl OutcomeToken {
      * @param receiver_id is the account that should receive the tokens
      * @param amount of tokens to transfer from LP Pool to receiver
      */
-    pub fn lp_pool_buy(&mut self, receiver_id: &AccountId, amount: WrappedBalance) {
-        assert!(amount > 0.0, "ERR_AMOUNT_LOWER_THAN_0");
+    pub fn lp_pool_transfer(
+        &mut self,
+        receiver_id: &AccountId,
+        amount: WrappedBalance,
+        amount_minus_fee: WrappedBalance,
+    ) {
+        assert!(amount_minus_fee > 0.0, "ERR_AMOUNT_LOWER_THAN_0");
 
         // @TODO if lp_pool_balance is not enough for amount, then mint more tokens?
         // @TODO if more tokens are minted, should the buyer also become a LP?
         assert!(
-            self.lp_pool_balance >= amount,
+            self.lp_pool_balance >= amount_minus_fee,
             "ERR_LP_POOL_BALANCE_LOWER_THAN_AMOUNT"
         );
 
-        let receiver_balance = self.balances.get(&receiver_id).unwrap_or(0.0);
-        let new_balance = receiver_balance + amount;
-        self.balances.insert(&receiver_id, &new_balance);
+        self.deposit(receiver_id, amount_minus_fee);
 
+        self.lp_distribute_amount(amount);
+        self.lp_pool_balance -= amount;
+    }
+
+    fn lp_distribute_amount(&mut self, amount: WrappedBalance) {
         let lp_balances = self.lp_balances.to_vec();
         for values in lp_balances.iter() {
             let lp_account_id = &values.0;
@@ -112,28 +103,30 @@ impl OutcomeToken {
             let new_lp_balance = lp_balance - (amount * lp_weight);
             self.lp_balances.insert(&lp_account_id, &new_lp_balance);
         }
-
-        self.lp_pool_balance -= amount;
     }
 
     /**
-     * @notice mint specific amount of tokens for an account
-     * @param account_id the account_id to mint tokens for
-     * @param amount the amount of tokens to mint
+     * @notice update price
+     * @param price f64
+     */
+    pub fn set_price(&mut self, price: WrappedBalance) {
+        self.price = price;
+    }
+
+    /**
+     * @notice increase price
+     * @param price_ratio a number between 0 and 1. Price should always > 0 < 1
      */
     pub fn increase_price(&mut self, price_ratio: PriceRatio) {
-        // @TODO self.price_ratio may be updated so that it doesn't reach 1
-        self.price = self.price + price_ratio;
+        self.set_price(self.price + price_ratio);
     }
 
     /**
-     * @notice mint specific amount of tokens for an account
-     * @param account_id the account_id to mint tokens for
-     * @param amount the amount of tokens to mint
+     * @notice decrease price
+     * @param price_ratio a number between 0 and 1. Price should always > 0 < 1
      */
     pub fn decrease_price(&mut self, price_ratio: PriceRatio) {
-        // @TODO self.price_ratio may be updated so that it doesn't reach 1
-        self.price = self.price - price_ratio;
+        self.set_price(self.price - price_ratio);
     }
 
     /**
