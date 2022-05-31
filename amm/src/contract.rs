@@ -238,7 +238,7 @@ impl Market {
     }
 
     /**
-     * Closes the market
+     * Resolves the market
      * Sets the winning OT price to 1
      * Sets the losing OT prices to 0
      *
@@ -253,9 +253,11 @@ impl Market {
     pub fn resolve(&mut self, outcome_id: OutcomeId) {
         self.assert_only_owner();
         self.assert_is_published();
+        self.assert_is_closed();
         self.assert_is_valid_outcome(outcome_id);
 
-        // @TODO what happens if the reoslution window expires? Resolution is no longer possible?
+        // @TODO what happens if the resolution window expires?
+        // Redeem is no longer possible? — Redeem is possible, but prices stay at their latest value
         self.assert_is_resolution_window_open();
 
         self.update_outcome_tokens_prices(outcome_id, SetPriceOptions::Resolve);
@@ -285,7 +287,7 @@ impl Market {
 
         match self.outcome_tokens.get(&outcome_id) {
             Some(token) => {
-                let outcome_token = token;
+                let mut outcome_token = token;
 
                 if outcome_token.get_price() == 0.0 {
                     env::panic_str("ERR_OUTCOME_TOKEN_PRICE_IS_0");
@@ -296,6 +298,8 @@ impl Market {
                 if balance <= 0.0 {
                     env::panic_str("ERR_REDEEM_BALANCE_IS_0");
                 }
+
+                outcome_token.safe_withdraw_internal(&env::signer_account_id(), balance);
 
                 let priced_amount = outcome_token.get_price() * balance;
 
@@ -331,45 +335,9 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn lp_redeem(&mut self, outcome_id: OutcomeId) -> WrappedBalance {
+    pub fn lp_redeem(&mut self, _outcome_id: OutcomeId) -> WrappedBalance {
         self.assert_is_resolved();
-        self.assert_is_valid_outcome(outcome_id);
-
-        match self.outcome_tokens.get(&outcome_id) {
-            Some(token) => {
-                let mut outcome_token = token;
-
-                if outcome_token.get_price() == 0.0 {
-                    env::panic_str("ERR_OUTCOME_TOKEN_PRICE_IS_0");
-                }
-
-                let balance = outcome_token.get_balance(&env::signer_account_id());
-
-                if balance <= 0.0 {
-                    env::panic_str("ERR_REDEEM_BALANCE_IS_0");
-                }
-
-                outcome_token.safe_withdraw_internal(&env::signer_account_id(), balance);
-
-                let priced_amount = outcome_token.get_price() * balance;
-
-                Promise::new(self.collateral_token_account_id.clone()).function_call(
-                    "ft_transfer".to_string(),
-                    json!({ "amount": priced_amount, "receiver_id": env::signer_account_id() })
-                        .to_string()
-                        .into_bytes(),
-                    FT_TRANSFER_BOND,
-                    GAS_FT_TRANSFER,
-                );
-
-                // @TODO create ft_transfer callback to verify that CT funds went through
-
-                self.update_outcome_token(&outcome_token);
-
-                return priced_amount;
-            }
-            None => 0.0,
-        }
+        return 0.0;
     }
 }
 

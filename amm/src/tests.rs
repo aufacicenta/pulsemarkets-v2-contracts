@@ -79,6 +79,17 @@ mod tests {
         amount
     }
 
+    fn redeem(
+        c: &mut Market,
+        collateral_token_balance: &mut WrappedBalance,
+        amount: WrappedBalance,
+        outcome_id: u64,
+    ) -> WrappedBalance {
+        c.redeem(outcome_id);
+        *collateral_token_balance -= amount;
+        amount
+    }
+
     fn remove_liquidity(
         c: &mut Market,
         collateral_token_balance: &mut WrappedBalance,
@@ -383,5 +394,88 @@ mod tests {
         //     200.0,
         //     0,
         // );
+    }
+
+    #[test]
+    fn test_redeem() {
+        let mut collateral_token_balance: f64 = 0.0;
+
+        let yes = 0;
+        let no = 1;
+
+        let starts_at = add_expires_at_nanos(100);
+        let ends_at = add_expires_at_nanos(300);
+        let resolution_window = 100;
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at,
+            ends_at,
+            resolution_window,
+        );
+
+        let mut contract: Market = setup_contract(market_data);
+
+        contract.publish();
+
+        add_liquidity(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            100.0,
+            yes,
+        );
+
+        add_liquidity(
+            &mut contract,
+            &mut collateral_token_balance,
+            bob(),
+            100.0,
+            yes,
+        );
+
+        // Open the market
+        let mut context = setup_context();
+        let mut now = (starts_at + 100) as u32;
+        testing_env!(context.block_timestamp(now.into()).build());
+
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            carol(),
+            100.0,
+            yes,
+        );
+
+        let outcome_token_yes: OutcomeToken = contract.get_outcome_token(yes);
+
+        assert_eq!(collateral_token_balance, 300.0);
+        assert_eq!(outcome_token_yes.get_balance(&carol()), 50.96);
+
+        // Close the market
+        now = (ends_at + resolution_window - 20) as u32;
+        testing_env!(context.block_timestamp(now.into()).build());
+
+        // Resolve the market
+        testing_env!(context.signer_account_id(dao_account_id()).build());
+        contract.resolve(yes);
+
+        let outcome_token_no: OutcomeToken = contract.get_outcome_token(no);
+
+        assert_eq!(contract.get_status(), "Resolved");
+        assert_eq!(outcome_token_yes.get_price(), 1.0);
+        assert_eq!(outcome_token_no.get_price(), 0.0);
+
+        testing_env!(context.signer_account_id(carol()).build());
+        redeem(
+            &mut contract,
+            &mut collateral_token_balance,
+            outcome_token_yes.get_balance(&carol()),
+            yes,
+        );
+
+        assert_eq!(outcome_token_yes.get_balance(&carol()), 0.0);
+        assert_eq!(collateral_token_balance, 249.04);
     }
 }

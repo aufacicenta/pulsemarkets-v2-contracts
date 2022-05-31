@@ -1,6 +1,6 @@
 use near_sdk::{
     collections::{LookupMap, UnorderedMap},
-    env, AccountId,
+    AccountId,
 };
 
 use crate::storage::{OutcomeId, OutcomeToken, Price, PriceRatio, WrappedBalance};
