@@ -1,12 +1,11 @@
 use near_sdk::{
     borsh::{self, BorshDeserialize, BorshSerialize},
-    collections::{LookupMap, UnorderedMap},
+    collections::LookupMap,
     json_types::U64,
     near_bindgen,
     serde::{Deserialize, Serialize},
     AccountId, BorshStorageKey,
 };
-use std::fmt;
 
 pub type OutcomeId = u64;
 pub type Timestamp = u64;
@@ -28,7 +27,6 @@ pub struct MarketData {
     pub starts_at: Timestamp,
     // Datetime nanos: the market is closed
     pub ends_at: Timestamp,
-    pub resolution_window: Timestamp,
 }
 
 #[near_bindgen]
@@ -37,22 +35,16 @@ pub struct Market {
     pub market: MarketData,
     pub dao_account_id: AccountId,
     pub collateral_token_account_id: AccountId,
-    pub status: MarketStatus,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
     // Decimal fee to charge upon a bet
-    pub lp_fee: f64,
-    // Decimal to increase or decrease upon purchases, bets or drops.
-    // May start at 0.1, but as the price gets closer to 1, we should reduce the ratio so that it never reaches 1
-    pub price_ratio: PriceRatio,
-}
-
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(crate = "near_sdk::serde")]
-pub enum MarketStatus {
-    Pending,
-    Published,
-    Resolved,
+    pub fee: WrappedBalance,
+    // When the market is published
+    pub published_at: Option<Timestamp>,
+    // When the market is published
+    pub resolved_at: Option<Timestamp>,
+    // Time to free up the market
+    pub resolution_window: Timestamp,
 }
 
 pub enum SetPriceOptions {
@@ -61,24 +53,12 @@ pub enum SetPriceOptions {
     Resolve,
 }
 
-impl std::fmt::Display for MarketStatus {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            MarketStatus::Pending => write!(f, "Pending"),
-            MarketStatus::Published => write!(f, "Published"),
-            MarketStatus::Resolved => write!(f, "Resolved"),
-        }
-    }
-}
-
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct OutcomeToken {
     // map `AccountId` to corresponding `Balance` in the market
     pub balances: LookupMap<AccountId, WrappedBalance>,
-    // keep track of LP balances on mint and burn
-    pub lp_balances: UnorderedMap<AccountId, WrappedBalance>,
-    // keep track of LP balances on mint and burn
-    pub lp_pool_balance: WrappedBalance,
+    // keep the number of accounts with positive balance. Use for calculating the price_ratio
+    pub accounts_length: u64,
     // total supply of this outcome_token
     pub total_supply: WrappedBalance,
     // the outcome this token represents, used for storage pointers
@@ -93,12 +73,6 @@ pub enum StorageKeys {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct AddLiquidityArgs {
-    // id of the outcome to add liquidity to
-    pub outcome_id: OutcomeId,
-}
-
-#[derive(Serialize, Deserialize)]
 pub struct BuyArgs {
     // id of the outcome that shares are to be purchased from
     pub outcome_id: OutcomeId,
@@ -109,5 +83,4 @@ pub struct BuyArgs {
 #[derive(Serialize, Deserialize)]
 pub enum Payload {
     BuyArgs(BuyArgs),
-    AddLiquidityArgs(AddLiquidityArgs),
 }

@@ -10,30 +10,30 @@ impl Market {
         }
     }
 
+    pub fn assert_is_not_resolved(&self) {
+        if self.is_resolved() {
+            env::panic_str("ERR_MARKET_RESOLVED");
+        }
+    }
+
     pub fn assert_is_resolved(&self) {
         if !self.is_resolved() {
             env::panic_str("ERR_MARKET_NOT_RESOLVED");
         }
     }
 
-    pub fn assert_is_closed(&self) {
+    pub fn assert_in_stand_by(&self) {
         if self.is_open() {
             env::panic_str("ERR_MARKET_IS_OPEN");
         }
     }
 
-    pub fn assert_aggregated_price_is_1(&self) {
+    pub fn assert_price_constant(&self) {
         let mut k: Price = 0.0;
 
         for id in 0..self.market.options.len() {
             self.assert_is_valid_outcome(id as OutcomeId);
-
-            match self.outcome_tokens.get(&(id as OutcomeId)) {
-                Some(token) => {
-                    k += token.get_price();
-                }
-                None => {}
-            }
+            k += self.get_outcome_token(id as OutcomeId).get_price();
         }
 
         assert_eq!(k, 1.0, "ERR_PRICE_CONSTANT_SHOULD_EQ_1");
@@ -51,8 +51,8 @@ impl Market {
         }
     }
 
-    pub fn assert_is_pending(&self) {
-        if !self.is_pending() {
+    pub fn assert_is_not_published(&self) {
+        if self.is_published() {
             env::panic_str("ERR_MARKET_ALREADY_PUBLISHED");
         }
     }

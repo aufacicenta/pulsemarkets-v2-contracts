@@ -36,7 +36,6 @@ impl FungibleTokenReceiver for Market {
         let payload: Payload = serde_json::from_str(&msg).expect("ERR_INVALID_PAYLOAD");
 
         match payload {
-            Payload::AddLiquidityArgs(payload) => self.add_liquidity(sender_id, amount, payload),
             Payload::BuyArgs(payload) => self.buy(sender_id, amount, payload),
         }
     }

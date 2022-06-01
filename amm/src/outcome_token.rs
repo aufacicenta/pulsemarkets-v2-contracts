@@ -22,8 +22,7 @@ impl OutcomeToken {
         Self {
             total_supply: initial_supply,
             balances: LookupMap::new(format!("OT:{}", outcome_id).as_bytes().to_vec()),
-            lp_balances: UnorderedMap::new(format!("LP:{}", outcome_id).as_bytes().to_vec()),
-            lp_pool_balance: 0.0,
+            accounts_length: 0,
             outcome_id,
             price,
         }
@@ -35,11 +34,13 @@ impl OutcomeToken {
      * @param amount the amount of tokens to mint
      */
     pub fn mint(&mut self, account_id: &AccountId, amount: WrappedBalance) {
-        let lp_balance = self.lp_balances.get(account_id).unwrap_or(0.0);
-        let new_balance = lp_balance + amount;
-        self.lp_balances.insert(account_id, &new_balance);
-        self.lp_pool_balance += amount;
+        assert!(amount > 0.0, "ERR_MINT_AMOUNT_LOWER_THAN_0");
+
+        let balance = self.balances.get(account_id).unwrap_or(0.0);
+        let new_balance = balance + amount;
+        self.balances.insert(account_id, &new_balance);
         self.total_supply += amount;
+        self.accounts_length += if balance == 0.0 { 1 } else { 0 };
     }
 
     /**
@@ -48,64 +49,14 @@ impl OutcomeToken {
      * @param amount the amount of tokens to burn
      */
     pub fn burn(&mut self, account_id: &AccountId, amount: WrappedBalance) {
-        let mut lp_balance = self.lp_balances.get(&account_id).unwrap_or(0.0);
+        let mut balance = self.balances.get(&account_id).unwrap_or(0.0);
 
-        assert!(lp_balance >= amount, "ERR_BURN_INSUFFICIENT_BALANCE");
+        assert!(balance >= amount, "ERR_BURN_INSUFFICIENT_BALANCE");
 
-        lp_balance -= amount;
-        self.lp_balances.insert(account_id, &lp_balance);
-        self.lp_pool_balance -= amount;
+        balance -= amount;
+        self.balances.insert(account_id, &balance);
         self.total_supply -= amount;
-    }
-
-    /**
-     * @notice update balance of account
-     * @param sender_id is the account to withdraw from
-     * @param amount of tokens to withdraw from balance
-     */
-    pub fn safe_withdraw_internal(&mut self, sender_id: &AccountId, amount: WrappedBalance) {
-        self.withdraw(sender_id, amount);
-        self.total_supply -= amount;
-    }
-
-    /**
-     * @notice transfer tokens from LP pool to receiver account
-     * @notice subtract an equal amount proportion to all LPs
-     * @param receiver_id is the account that should receive the tokens
-     * @param amount of tokens to transfer from LP Pool to receiver
-     */
-    pub fn lp_pool_transfer(
-        &mut self,
-        receiver_id: &AccountId,
-        amount: WrappedBalance,
-        fee: WrappedBalance,
-    ) {
-        let amount_minus_fee = amount - fee;
-
-        assert!(amount_minus_fee > 0.0, "ERR_AMOUNT_LOWER_THAN_0");
-
-        // @TODO if lp_pool_balance is not enough for amount, then mint more tokens?
-        // @TODO if more tokens are minted, should the buyer also become a LP?
-        assert!(
-            self.lp_pool_balance >= amount_minus_fee,
-            "ERR_LP_POOL_BALANCE_LOWER_THAN_AMOUNT"
-        );
-
-        self.deposit(receiver_id, amount_minus_fee);
-        self.lp_distribute_amount(amount, fee);
-    }
-
-    fn lp_distribute_amount(&mut self, amount: WrappedBalance, fee: WrappedBalance) {
-        let lp_balances = self.lp_balances.to_vec();
-        for values in lp_balances.iter() {
-            let lp_account_id = &values.0;
-            let lp_balance = values.1;
-            let lp_weight = self.get_lp_weight(lp_account_id);
-            let new_lp_balance = lp_balance - (amount * lp_weight) + (fee * lp_weight);
-            self.lp_balances.insert(&lp_account_id, &new_lp_balance);
-        }
-
-        self.lp_pool_balance -= amount - fee;
+        self.accounts_length -= if balance - amount == 0.0 { 1 } else { 0 };
     }
 
     /**
@@ -142,31 +93,10 @@ impl OutcomeToken {
     }
 
     /**
-     * @notice returns LP account's balance
-     * @param account_id is the account_id to return the balance of
-     * @returns `accoun_id`s balance
+     *
      */
-    pub fn get_lp_balance(&self, account_id: &AccountId) -> WrappedBalance {
-        self.lp_balances.get(account_id).unwrap_or(0.0)
-    }
-
-    /**
-     * @notice returns LP account's balance
-     * @param account_id is the account_id to return the balance of
-     * @returns `accoun_id`s balance
-     */
-    pub fn get_lp_pool_balance(&self) -> WrappedBalance {
-        self.lp_pool_balance
-    }
-
-    /**
-     * @notice returns LP weight in pool
-     * @param account_id is the account_id to return the balance of
-     * @returns `accoun_id`s balance
-     */
-    pub fn get_lp_weight(&self, account_id: &AccountId) -> WrappedBalance {
-        let lp_balance = self.get_lp_balance(account_id);
-        lp_balance / self.lp_pool_balance
+    pub fn get_accounts_length(&self) -> u64 {
+        self.accounts_length
     }
 
     /**
