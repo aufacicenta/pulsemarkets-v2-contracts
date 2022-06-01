@@ -122,7 +122,7 @@ impl Market {
                 self.update_outcome_token(&outcome_token);
                 self.update_outcome_tokens_prices(payload.outcome_id, SetPriceOptions::Increase);
 
-                return outcome_token.total_supply();
+                return amount;
             }
             None => {
                 env::panic_str("ERR_WRONG_OUTCOME_ID");
@@ -179,7 +179,7 @@ impl Market {
                 self.update_outcome_token(&outcome_token);
                 self.update_outcome_tokens_prices(outcome_id, SetPriceOptions::Decrease);
 
-                return outcome_token.total_supply();
+                return amount;
             }
             None => 0.0,
         }
@@ -225,13 +225,24 @@ impl Market {
                 // - 1.5% goes to LPs
                 // - 0.5% goes to the user who created the market
                 let priced_amount = outcome_token.get_price() * amount;
-                let amount_minus_fee = priced_amount * (1.0 - self.lp_fee);
-                outcome_token.lp_pool_transfer(&sender_id, priced_amount, amount_minus_fee);
+                // let amount_minus_fee = priced_amount * (1.0 - self.lp_fee);
+                let fee = priced_amount * self.lp_fee;
+
+                println!(
+                    "BUY supply: {}, price: {}, priced_amount: {}, lp_fee: {}, fee: {}",
+                    outcome_token.total_supply(),
+                    outcome_token.get_price(),
+                    priced_amount,
+                    self.lp_fee,
+                    fee,
+                );
+
+                outcome_token.lp_pool_transfer(&sender_id, priced_amount, fee);
 
                 self.update_outcome_token(&outcome_token);
                 self.update_outcome_tokens_prices(payload.outcome_id, SetPriceOptions::Increase);
 
-                return outcome_token.total_supply();
+                return priced_amount - fee;
             }
             None => 0.0,
         }
@@ -294,14 +305,20 @@ impl Market {
                 }
 
                 let balance = outcome_token.get_balance(&env::signer_account_id());
-
-                if balance <= 0.0 {
-                    env::panic_str("ERR_REDEEM_BALANCE_IS_0");
-                }
+                let weight = balance / outcome_token.total_supply();
+                let priced_amount = outcome_token.get_price() * balance * (1.0 + weight);
 
                 outcome_token.safe_withdraw_internal(&env::signer_account_id(), balance);
 
-                let priced_amount = outcome_token.get_price() * balance;
+                self.update_outcome_token(&outcome_token);
+
+                println!(
+                    "REDEEM price: {}, balance: {}, weight: {}, priced_amount: {}",
+                    outcome_token.get_price(),
+                    balance,
+                    weight,
+                    priced_amount,
+                );
 
                 Promise::new(self.collateral_token_account_id.clone()).function_call(
                     "ft_transfer".to_string(),
@@ -335,9 +352,49 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn lp_redeem(&mut self, _outcome_id: OutcomeId) -> WrappedBalance {
+    pub fn lp_redeem(&mut self, outcome_id: OutcomeId) -> WrappedBalance {
         self.assert_is_resolved();
-        return 0.0;
+        self.assert_is_valid_outcome(outcome_id);
+
+        match self.outcome_tokens.get(&outcome_id) {
+            Some(token) => {
+                let mut outcome_token = token;
+
+                if outcome_token.get_price() == 0.0 {
+                    env::panic_str("ERR_OUTCOME_TOKEN_PRICE_IS_0");
+                }
+
+                let balance = outcome_token.get_lp_balance(&env::signer_account_id());
+                let lp_weight = balance / outcome_token.total_supply();
+                let total_supply = outcome_token.total_supply();
+
+                let priced_amount = outcome_token.get_price() * balance * (1.0 + lp_weight);
+
+                println!(
+                    "LP_REDEEM price: {}, balance: {}, weight: {}, pool_balance: {}, priced_amount: {}, total_supply: {}",
+                    outcome_token.get_price(),
+                    balance,
+                    outcome_token.get_lp_weight(&env::signer_account_id()),
+                    outcome_token.get_lp_pool_balance(),
+                    priced_amount,
+                    total_supply,
+                );
+
+                outcome_token.burn(&env::signer_account_id(), balance);
+
+                Promise::new(self.collateral_token_account_id.clone()).function_call(
+                    "ft_transfer".to_string(),
+                    json!({ "amount": priced_amount, "receiver_id": env::signer_account_id() })
+                        .to_string()
+                        .into_bytes(),
+                    FT_TRANSFER_BOND,
+                    GAS_FT_TRANSFER,
+                );
+
+                return priced_amount;
+            }
+            None => 0.0,
+        }
     }
 }
 

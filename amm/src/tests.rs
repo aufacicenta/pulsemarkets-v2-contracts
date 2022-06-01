@@ -82,10 +82,19 @@ mod tests {
     fn redeem(
         c: &mut Market,
         collateral_token_balance: &mut WrappedBalance,
-        amount: WrappedBalance,
         outcome_id: u64,
     ) -> WrappedBalance {
-        c.redeem(outcome_id);
+        let amount = c.redeem(outcome_id);
+        *collateral_token_balance -= amount;
+        amount
+    }
+
+    fn lp_redeem(
+        c: &mut Market,
+        collateral_token_balance: &mut WrappedBalance,
+        outcome_id: u64,
+    ) -> WrappedBalance {
+        let amount = c.lp_redeem(outcome_id);
         *collateral_token_balance -= amount;
         amount
     }
@@ -435,6 +444,19 @@ mod tests {
             yes,
         );
 
+        let mut outcome_token_yes: OutcomeToken = contract.get_outcome_token(yes);
+
+        assert_eq!(outcome_token_yes.get_lp_balance(&alice()), 50.0);
+        assert_eq!(outcome_token_yes.get_lp_balance(&bob()), 49.0);
+        assert_eq!(
+            outcome_token_yes.total_supply(),
+            outcome_token_yes.get_lp_balance(&alice()) + outcome_token_yes.get_lp_balance(&bob())
+        );
+        assert_eq!(
+            outcome_token_yes.get_lp_pool_balance(),
+            outcome_token_yes.get_lp_balance(&alice()) + outcome_token_yes.get_lp_balance(&bob())
+        );
+
         // Open the market
         let mut context = setup_context();
         let mut now = (starts_at + 100) as u32;
@@ -448,7 +470,19 @@ mod tests {
             yes,
         );
 
-        let outcome_token_yes: OutcomeToken = contract.get_outcome_token(yes);
+        outcome_token_yes = contract.get_outcome_token(yes);
+
+        assert_eq!(
+            outcome_token_yes.get_lp_pool_balance(),
+            outcome_token_yes.get_lp_balance(&alice()) + outcome_token_yes.get_lp_balance(&bob())
+        );
+
+        let lp_balance_1 = outcome_token_yes.get_lp_balance(&alice());
+        let lp_balance_2 = outcome_token_yes.get_lp_balance(&bob());
+        let total_supply = lp_balance_1 + lp_balance_2 + outcome_token_yes.get_balance(&carol());
+
+        // OT total_supply is not modified upon purchase since "buy" won't mint new units
+        assert_eq!(outcome_token_yes.total_supply(), total_supply);
 
         assert_eq!(collateral_token_balance, 300.0);
         assert_eq!(outcome_token_yes.get_balance(&carol()), 50.96);
@@ -461,6 +495,7 @@ mod tests {
         testing_env!(context.signer_account_id(dao_account_id()).build());
         contract.resolve(yes);
 
+        outcome_token_yes = contract.get_outcome_token(yes);
         let outcome_token_no: OutcomeToken = contract.get_outcome_token(no);
 
         assert_eq!(contract.get_status(), "Resolved");
@@ -468,14 +503,32 @@ mod tests {
         assert_eq!(outcome_token_no.get_price(), 0.0);
 
         testing_env!(context.signer_account_id(carol()).build());
-        redeem(
-            &mut contract,
-            &mut collateral_token_balance,
-            outcome_token_yes.get_balance(&carol()),
-            yes,
-        );
+        let prev_collateral_token_balance = collateral_token_balance;
+        let earnings = redeem(&mut contract, &mut collateral_token_balance, yes);
 
         assert_eq!(outcome_token_yes.get_balance(&carol()), 0.0);
-        assert_eq!(collateral_token_balance, 249.04);
+        assert_eq!(
+            collateral_token_balance,
+            prev_collateral_token_balance - earnings
+        );
+
+        // OT total_supply is still unmodified after redeem. Supply only changes upon minting or burning. Redeeming wont burn tokens
+        assert_eq!(outcome_token_yes.total_supply(), total_supply);
+
+        // LP balances remain unmodified after a buyer redeems
+        assert_eq!(outcome_token_yes.get_lp_balance(&alice()), lp_balance_1);
+        assert_eq!(outcome_token_yes.get_lp_balance(&bob()), lp_balance_2);
+
+        testing_env!(context.signer_account_id(alice()).build());
+        lp_redeem(&mut contract, &mut collateral_token_balance, yes);
+
+        testing_env!(context.signer_account_id(bob()).build());
+        lp_redeem(&mut contract, &mut collateral_token_balance, yes);
+
+        // outcome_token_yes = contract.get_outcome_token(yes);
+
+        assert_eq!(outcome_token_yes.get_lp_balance(&alice()), 0.0);
+        assert_eq!(outcome_token_yes.get_lp_balance(&bob()), 0.0);
+        assert_eq!(collateral_token_balance, 0.0);
     }
 }

@@ -50,7 +50,7 @@ impl OutcomeToken {
     pub fn burn(&mut self, account_id: &AccountId, amount: WrappedBalance) {
         let mut lp_balance = self.lp_balances.get(&account_id).unwrap_or(0.0);
 
-        assert!(lp_balance >= amount, "ERR_INSUFFICIENT_BALANCE");
+        assert!(lp_balance >= amount, "ERR_BURN_INSUFFICIENT_BALANCE");
 
         lp_balance -= amount;
         self.lp_balances.insert(account_id, &lp_balance);
@@ -65,6 +65,7 @@ impl OutcomeToken {
      */
     pub fn safe_withdraw_internal(&mut self, sender_id: &AccountId, amount: WrappedBalance) {
         self.withdraw(sender_id, amount);
+        self.total_supply -= amount;
     }
 
     /**
@@ -77,8 +78,10 @@ impl OutcomeToken {
         &mut self,
         receiver_id: &AccountId,
         amount: WrappedBalance,
-        amount_minus_fee: WrappedBalance,
+        fee: WrappedBalance,
     ) {
+        let amount_minus_fee = amount - fee;
+
         assert!(amount_minus_fee > 0.0, "ERR_AMOUNT_LOWER_THAN_0");
 
         // @TODO if lp_pool_balance is not enough for amount, then mint more tokens?
@@ -89,20 +92,20 @@ impl OutcomeToken {
         );
 
         self.deposit(receiver_id, amount_minus_fee);
-
-        self.lp_distribute_amount(amount);
-        self.lp_pool_balance -= amount;
+        self.lp_distribute_amount(amount, fee);
     }
 
-    fn lp_distribute_amount(&mut self, amount: WrappedBalance) {
+    fn lp_distribute_amount(&mut self, amount: WrappedBalance, fee: WrappedBalance) {
         let lp_balances = self.lp_balances.to_vec();
         for values in lp_balances.iter() {
             let lp_account_id = &values.0;
-            let lp_balance = &values.1;
-            let lp_weight = lp_balance / self.lp_pool_balance;
-            let new_lp_balance = lp_balance - (amount * lp_weight);
+            let lp_balance = values.1;
+            let lp_weight = self.get_lp_weight(lp_account_id);
+            let new_lp_balance = lp_balance - (amount * lp_weight) + (fee * lp_weight);
             self.lp_balances.insert(&lp_account_id, &new_lp_balance);
         }
+
+        self.lp_pool_balance -= amount - fee;
     }
 
     /**
@@ -157,6 +160,16 @@ impl OutcomeToken {
     }
 
     /**
+     * @notice returns LP weight in pool
+     * @param account_id is the account_id to return the balance of
+     * @returns `accoun_id`s balance
+     */
+    pub fn get_lp_weight(&self, account_id: &AccountId) -> WrappedBalance {
+        let lp_balance = self.get_lp_balance(account_id);
+        lp_balance / self.lp_pool_balance
+    }
+
+    /**
      * @notice returns account's balance
      * @param account_id is the account_id to return the balance of
      * @returns `accoun_id`s balance
@@ -180,7 +193,7 @@ impl OutcomeToken {
      * @param amount the amount of tokens to deposit
      */
     fn deposit(&mut self, receiver_id: &AccountId, amount: WrappedBalance) {
-        assert!(amount > 0.0, "Cannot deposit 0 or lower");
+        assert!(amount > 0.0, "ERR_DEPOSIT_AMOUNT_LOWER_THAN_0");
 
         let receiver_balance = self.balances.get(&receiver_id).unwrap_or(0.0);
         let new_balance = receiver_balance + amount;
@@ -196,8 +209,8 @@ impl OutcomeToken {
     fn withdraw(&mut self, sender_id: &AccountId, amount: WrappedBalance) {
         let sender_balance = self.balances.get(&sender_id).unwrap_or(0.0);
 
-        assert!(amount > 0.0, "Cannot withdraw 0 or lower");
-        assert!(sender_balance >= amount, "Not enough balance");
+        assert!(amount > 0.0, "ERR_WITHDRAW_AMOUNT_LOWER_THAN_0");
+        assert!(sender_balance >= amount, "ERR_BALANCE_LOWER_THAN_AMOUNT");
 
         let new_balance = sender_balance - amount;
         self.balances.insert(&sender_id, &new_balance);
