@@ -58,6 +58,10 @@ Also upon each purchase, the price of the purchased outcome token will be increm
 
 When the presale period ends, meaning that the event has started and it is not yet finalized, the buyers no longer get a bonus for their purchase, in other words, they get 1:1 for their purchase at the current outcome token price.
 
+#### Price dynamics
+
+In prediction markets, the price of each outcome is always a value between 0 and 1. Also, the sum of all prices must always be 1.
+
 ### The resolution
 
 Only when the event has ended, the market can be resoluted, meaning that someone or a group of people — commonly known as oracles — determine what was the winning outcome. When this happens, the price of the winning outcome is set to `1` and the other outcomes' prices is set to `0`. This will allow any outcome token holder to redeem their earnings by a proportional amount to the overall supply of such outcome token.

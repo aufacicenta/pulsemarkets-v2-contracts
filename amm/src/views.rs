@@ -8,6 +8,10 @@ impl Market {
         self.market.clone()
     }
 
+    pub fn get_fee(&self) -> WrappedBalance {
+        self.fee
+    }
+
     pub fn get_price_ratio(&self, outcome_id: OutcomeId) -> PriceRatio {
         let outcome_token = self.get_outcome_token(outcome_id);
         let accounts_length = outcome_token.get_accounts_length();
@@ -27,9 +31,9 @@ impl Market {
         price_ratio
     }
 
-    pub fn get_boost_ratio(&self) -> WrappedBalance {
+    pub fn get_balance_boost_ratio(&self) -> WrappedBalance {
         println!(
-            "GET_BOOST_RATIO ends_at: {}, block_timestamp: {}",
+            "GET_BALANCE_BOOST_RATIO ends_at: {}, block_timestamp: {}",
             self.market.ends_at,
             env::block_timestamp()
         );
@@ -67,6 +71,10 @@ impl Market {
     pub fn is_open(&self) -> bool {
         self.market.starts_at < env::block_timestamp()
             && self.market.ends_at >= env::block_timestamp()
+    }
+
+    pub fn is_over(&self) -> bool {
+        env::block_timestamp() > self.market.ends_at
     }
 
     pub fn is_resolution_window_expired(&self) -> bool {

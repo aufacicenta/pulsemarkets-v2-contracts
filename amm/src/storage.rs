@@ -14,6 +14,7 @@ pub type Price = f64;
 pub type PriceRatio = f64;
 pub type WrappedTimestamp = U64;
 pub type WrappedBalance = f64;
+pub type Weight = f64;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]

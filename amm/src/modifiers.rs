@@ -45,6 +45,12 @@ impl Market {
         }
     }
 
+    pub fn assert_is_not_over(&self) {
+        if self.is_over() {
+            env::panic_str("ERR_EVENT_IS_OVER");
+        }
+    }
+
     pub fn assert_is_resolution_window_open(&self) {
         if self.is_resolution_window_expired() {
             env::panic_str("ERR_RESOLUTION_WINDOW_EXPIRED");

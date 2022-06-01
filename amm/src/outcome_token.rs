@@ -45,16 +45,16 @@ impl OutcomeToken {
 
     /**
      * @notice burn specific amount of tokens for an account
-     * @param account_id the account_id to burn tokens for
-     * @param amount the amount of tokens to burn
+     * @param account_id, the account_id to burn tokens for
+     * @param amount, the amount of tokens to burn
      */
     pub fn burn(&mut self, account_id: &AccountId, amount: WrappedBalance) {
-        let mut balance = self.balances.get(&account_id).unwrap_or(0.0);
+        let balance = self.balances.get(&account_id).unwrap_or(0.0);
 
         assert!(balance >= amount, "ERR_BURN_INSUFFICIENT_BALANCE");
 
-        balance -= amount;
-        self.balances.insert(account_id, &balance);
+        let new_balance = balance - amount;
+        self.balances.insert(account_id, &new_balance);
         self.total_supply -= amount;
         self.accounts_length -= if balance - amount == 0.0 { 1 } else { 0 };
     }
