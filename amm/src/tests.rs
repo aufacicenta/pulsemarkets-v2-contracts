@@ -11,6 +11,14 @@ mod tests {
 
     const LP_FEE: WrappedBalance = 0.02;
 
+    fn lp_1() -> AccountId {
+        AccountId::new_unchecked("lp1.near".to_string())
+    }
+
+    fn lp_2() -> AccountId {
+        AccountId::new_unchecked("lp2.near".to_string())
+    }
+
     fn daniel() -> AccountId {
         AccountId::new_unchecked("daniel.near".to_string())
     }
@@ -56,6 +64,20 @@ mod tests {
         );
 
         contract
+    }
+
+    fn add_liquidity(
+        c: &mut Market,
+        collateral_token_balance: &mut WrappedBalance,
+        account_id: AccountId,
+        amount: WrappedBalance,
+    ) -> WrappedBalance {
+        let msg = serde_json::json!({
+            "AddLiquidityArgs": {}
+        });
+
+        *collateral_token_balance += amount;
+        c.ft_on_transfer(account_id, amount, msg.to_string())
     }
 
     fn buy(
@@ -183,6 +205,8 @@ mod tests {
 
         // @TODO publish may also be made by a CT ft_on_transfer
         contract.publish();
+
+        // add_liquidity(&mut contract, &mut collateral_token_balance, lp_1(), 100.0);
 
         testing_env!(context.block_timestamp(starts_at - 40).build());
         let mut alice_balance = buy(
@@ -315,9 +339,9 @@ mod tests {
 
         let outcome_token_yes = contract.get_outcome_token(yes);
         // Convert to u64 because a f64 0 is not precise
-        assert_eq!(outcome_token_yes.total_supply() as u64, 0);
+        assert_eq!(format!("{:.1}", outcome_token_yes.total_supply()), "0.0");
 
         // Convert to u64 because a f64 0 is not precise
-        assert_eq!(collateral_token_balance as u64, 0);
+        assert_eq!(format!("{:.1}", collateral_token_balance), "0.0");
     }
 }

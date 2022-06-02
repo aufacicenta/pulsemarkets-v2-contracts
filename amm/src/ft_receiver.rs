@@ -37,6 +37,7 @@ impl FungibleTokenReceiver for Market {
 
         match payload {
             Payload::BuyArgs(payload) => self.buy(sender_id, amount, payload),
+            Payload::AddLiquidityArgs(payload) => self.add_liquidity(sender_id, amount, payload),
         }
     }
 }
