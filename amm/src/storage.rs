@@ -10,11 +10,11 @@ use near_sdk::{
 pub type OutcomeId = u64;
 pub type Timestamp = u64;
 pub type LiquidityProvider = AccountId;
-pub type Price = f64;
-pub type PriceRatio = f64;
+pub type Price = f32;
+pub type PriceRatio = f32;
 pub type WrappedTimestamp = U64;
-pub type WrappedBalance = f64;
-pub type Weight = f64;
+pub type WrappedBalance = f32;
+pub type Weight = f32;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
@@ -51,7 +51,6 @@ pub struct Market {
 pub enum SetPriceOptions {
     Increase,
     Decrease,
-    Resolve,
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]

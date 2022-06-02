@@ -30,7 +30,7 @@ impl FungibleTokenReceiver for Market {
     ) -> WrappedBalance {
         self.assert_is_published();
 
-        let amount: f64 = amount.into();
+        let amount: WrappedBalance = amount.into();
         assert!(amount > 0.0, "ERR_ZERO_AMOUNT");
 
         let payload: Payload = serde_json::from_str(&msg).expect("ERR_INVALID_PAYLOAD");

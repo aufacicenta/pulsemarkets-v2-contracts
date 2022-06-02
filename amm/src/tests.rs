@@ -9,7 +9,7 @@ mod tests {
 
     const _ATTACHED_DEPOSIT: Balance = 1_000_000_000_000_000_000_000_000; // 1 Near
 
-    const LP_FEE: f64 = 0.02;
+    const LP_FEE: WrappedBalance = 0.02;
 
     fn daniel() -> AccountId {
         AccountId::new_unchecked("daniel.near".to_string())
@@ -165,7 +165,7 @@ mod tests {
     fn test_binary_market() {
         let mut context = setup_context();
 
-        let mut collateral_token_balance: f64 = 0.0;
+        let mut collateral_token_balance: WrappedBalance = 0.0;
 
         let yes = 0;
         let no = 1;

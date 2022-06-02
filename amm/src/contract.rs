@@ -29,7 +29,7 @@ impl Market {
         market: MarketData,
         dao_account_id: AccountId,
         collateral_token_account_id: AccountId,
-        fee: f64,
+        fee: WrappedBalance,
         resolution_window: Timestamp,
     ) -> Self {
         if env::state_exists() {
@@ -120,8 +120,6 @@ impl Market {
                 let net_amount = (exchange_rate * balance_boost) - fee;
 
                 // @TODO distribute fee. Only when market is resolved?
-                // - 95% goes to $PULSE stakers
-                // - 5% goes to the user who created the market
 
                 println!(
                     "BUY account_id: {}, supply: {}, price: {}, exchange_rate: {}, fee: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
@@ -325,9 +323,6 @@ impl Market {
                             SetPriceOptions::Decrease => {
                                 outcome_token.decrease_price(price_ratio);
                             }
-                            SetPriceOptions::Resolve => {
-                                outcome_token.set_price(1.0);
-                            }
                         }
                     } else {
                         match set_price_option {
@@ -336,9 +331,6 @@ impl Market {
                             }
                             SetPriceOptions::Decrease => {
                                 outcome_token.increase_price(price_ratio);
-                            }
-                            SetPriceOptions::Resolve => {
-                                outcome_token.set_price(0.0);
                             }
                         }
                     }
