@@ -83,13 +83,13 @@ mod tests {
     ) -> WrappedBalance {
         let amount_sold = c.sell(outcome_id, amount);
         *collateral_token_balance -= amount_sold;
-        amount_sold
+        amount
     }
 
     fn resolve(c: &mut Market, collateral_token_balance: &mut WrappedBalance, outcome_id: u64) {
         c.resolve(outcome_id);
         let balance = *collateral_token_balance;
-        *collateral_token_balance += balance * c.get_fee();
+        *collateral_token_balance -= balance * c.get_fee();
     }
 
     fn create_market_data(
@@ -170,18 +170,21 @@ mod tests {
         let yes = 0;
         let no = 1;
 
-        let starts_at = add_expires_at_nanos(100);
-        let ends_at = add_expires_at_nanos(300);
-        let resolution_window = 100;
+        let now = add_expires_at_nanos(0);
+        testing_env!(context.block_timestamp(now).build());
+        let starts_at = now + 40;
+        let ends_at = starts_at + 40;
+        let resolution_window = 40;
 
         let market_data: MarketData =
             create_market_data("a market description".to_string(), 2, starts_at, ends_at);
 
         let mut contract: Market = setup_contract(market_data, resolution_window);
 
+        // @TODO publish may also be made by a CT ft_on_transfer
         contract.publish();
 
-        testing_env!(context.block_timestamp(starts_at - 99).build());
+        testing_env!(context.block_timestamp(starts_at - 40).build());
         let mut alice_balance = buy(
             &mut contract,
             &mut collateral_token_balance,
@@ -190,7 +193,7 @@ mod tests {
             yes,
         );
 
-        testing_env!(context.block_timestamp(starts_at - 89).build());
+        testing_env!(context.block_timestamp(starts_at - 30).build());
         let mut bob_balance = buy(
             &mut contract,
             &mut collateral_token_balance,
@@ -199,8 +202,8 @@ mod tests {
             yes,
         );
 
-        testing_env!(context.block_timestamp(starts_at - 79).build());
-        let carol_balance = buy(
+        testing_env!(context.block_timestamp(starts_at - 20).build());
+        let mut carol_balance = buy(
             &mut contract,
             &mut collateral_token_balance,
             carol(),
@@ -208,8 +211,8 @@ mod tests {
             yes,
         );
 
-        testing_env!(context.block_timestamp(starts_at - 69).build());
-        let daniel_balance = buy(
+        testing_env!(context.block_timestamp(starts_at - 10).build());
+        let mut daniel_balance = buy(
             &mut contract,
             &mut collateral_token_balance,
             daniel(),
@@ -217,15 +220,16 @@ mod tests {
             yes,
         );
 
-        let mut outcome_token_yes: OutcomeToken = contract.get_outcome_token(yes);
+        // let mut outcome_token_yes: OutcomeToken = contract.get_outcome_token(yes);
 
-        assert_eq!(
-            outcome_token_yes.total_supply(),
-            alice_balance + bob_balance + carol_balance + daniel_balance
-        );
+        // assert_eq!(
+        //     outcome_token_yes.total_supply(),
+        //     alice_balance + bob_balance + carol_balance + daniel_balance
+        // );
 
-        testing_env!(context.block_timestamp(starts_at - 59).build());
-        let emily_balance = buy(
+        // Buy NO token
+        testing_env!(context.block_timestamp(starts_at - 40).build());
+        buy(
             &mut contract,
             &mut collateral_token_balance,
             emily(),
@@ -233,8 +237,8 @@ mod tests {
             no,
         );
 
-        testing_env!(context.block_timestamp(starts_at - 49).build());
-        let frank_balance = buy(
+        testing_env!(context.block_timestamp(starts_at - 30).build());
+        buy(
             &mut contract,
             &mut collateral_token_balance,
             frank(),
@@ -242,7 +246,7 @@ mod tests {
             no,
         );
 
-        testing_env!(context.block_timestamp(starts_at - 39).build());
+        testing_env!(context.block_timestamp(starts_at - 20).build());
         let mut gus_balance = buy(
             &mut contract,
             &mut collateral_token_balance,
@@ -251,49 +255,28 @@ mod tests {
             no,
         );
 
-        let mut outcome_token_no: OutcomeToken = contract.get_outcome_token(no);
-
-        assert_eq!(
-            outcome_token_no.total_supply(),
-            emily_balance + frank_balance + gus_balance
-        );
-
         assert_eq!(collateral_token_balance, 700.0);
 
         // alice sells half her OT balance while the event is ongoing
         testing_env!(context.signer_account_id(alice()).build());
-        let amount = alice_balance / 2.0;
-        let mut amount_sold = sell(&mut contract, &mut collateral_token_balance, amount, yes);
-
-        outcome_token_yes = contract.get_outcome_token(yes);
-        alice_balance = outcome_token_yes.get_balance(&alice());
-        assert_eq!(
-            outcome_token_yes.total_supply(),
-            alice_balance + bob_balance + carol_balance + daniel_balance
+        // let amount = alice_balance / 2.0;
+        alice_balance -= sell(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice_balance,
+            yes,
         );
-
-        let mut total_sold = 700.0 - amount_sold;
-        assert_eq!(collateral_token_balance, total_sold);
+        assert_eq!(alice_balance, 0.0);
 
         // gus sells his full OT balance while the event is ongoing
         testing_env!(context.signer_account_id(gus()).build());
-        amount_sold = sell(
+        gus_balance -= sell(
             &mut contract,
             &mut collateral_token_balance,
             gus_balance,
             no,
         );
-
-        outcome_token_no = contract.get_outcome_token(no);
-        gus_balance = outcome_token_yes.get_balance(&gus());
-        assert_eq!(
-            outcome_token_no.total_supply(),
-            emily_balance + frank_balance + gus_balance
-        );
         assert_eq!(gus_balance, 0.0);
-
-        total_sold = total_sold - amount_sold;
-        assert_eq!(collateral_token_balance, total_sold);
 
         // Event is over. Resolution window is open
         let now = (ends_at + resolution_window - 20) as u32;
@@ -303,57 +286,46 @@ mod tests {
         testing_env!(context.signer_account_id(dao_account_id()).build());
         resolve(&mut contract, &mut collateral_token_balance, yes);
 
-        outcome_token_yes = contract.get_outcome_token(yes);
-        outcome_token_no = contract.get_outcome_token(no);
-
-        assert_eq!(outcome_token_yes.get_price(), 1.0);
-        assert_eq!(outcome_token_no.get_price(), 0.0);
+        // Burn the losers
+        let outcome_token_no = contract.get_outcome_token(no);
+        let emily_balance = outcome_token_no.get_balance(&emily());
+        assert_eq!(emily_balance, 0.0);
+        let frank_balance = outcome_token_no.get_balance(&emily());
+        assert_eq!(frank_balance, 0.0);
 
         // bob sells his OT balance after the market is resolved. Claim earnings!!
         testing_env!(context.signer_account_id(bob()).build());
-        amount_sold = sell(
+        bob_balance -= sell(
             &mut contract,
             &mut collateral_token_balance,
             bob_balance,
             yes,
         );
-
-        // total_sold = total_sold - amount_sold;
-        // assert_eq!(collateral_token_balance, total_sold);
-
-        outcome_token_yes = contract.get_outcome_token(yes);
-        bob_balance = outcome_token_yes.get_balance(&bob());
-        assert_eq!(
-            outcome_token_yes.total_supply(),
-            alice_balance + bob_balance + carol_balance + daniel_balance
-        );
         assert_eq!(bob_balance, 0.0);
 
-        // keep selling YES a lo puro loco
-        testing_env!(context.signer_account_id(alice()).build());
-        sell(
-            &mut contract,
-            &mut collateral_token_balance,
-            alice_balance,
-            yes,
-        );
-
         testing_env!(context.signer_account_id(carol()).build());
-        sell(
+        carol_balance -= sell(
             &mut contract,
             &mut collateral_token_balance,
             carol_balance,
             yes,
         );
+        assert_eq!(carol_balance, 0.0);
 
         testing_env!(context.signer_account_id(daniel()).build());
-        sell(
+        daniel_balance -= sell(
             &mut contract,
             &mut collateral_token_balance,
             daniel_balance,
             yes,
         );
+        assert_eq!(daniel_balance, 0.0);
 
-        assert_eq!(collateral_token_balance, 0.0);
+        let outcome_token_yes = contract.get_outcome_token(yes);
+        // Convert to u64 because a f64 0 is not precise
+        assert_eq!(outcome_token_yes.total_supply() as u64, 0);
+
+        // Convert to u64 because a f64 0 is not precise
+        assert_eq!(collateral_token_balance as u64, 0);
     }
 }

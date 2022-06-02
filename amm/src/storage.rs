@@ -1,6 +1,6 @@
 use near_sdk::{
     borsh::{self, BorshDeserialize, BorshSerialize},
-    collections::LookupMap,
+    collections::{LookupMap, UnorderedMap},
     json_types::U64,
     near_bindgen,
     serde::{Deserialize, Serialize},
@@ -57,7 +57,7 @@ pub enum SetPriceOptions {
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct OutcomeToken {
     // map `AccountId` to corresponding `Balance` in the market
-    pub balances: LookupMap<AccountId, WrappedBalance>,
+    pub balances: UnorderedMap<AccountId, WrappedBalance>,
     // keep the number of accounts with positive balance. Use for calculating the price_ratio
     pub accounts_length: u64,
     // total supply of this outcome_token

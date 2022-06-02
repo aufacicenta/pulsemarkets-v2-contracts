@@ -1,7 +1,4 @@
-use near_sdk::{
-    collections::{LookupMap, UnorderedMap},
-    AccountId,
-};
+use near_sdk::{collections::UnorderedMap, AccountId};
 
 use crate::storage::{OutcomeId, OutcomeToken, Price, PriceRatio, WrappedBalance};
 
@@ -21,7 +18,7 @@ impl OutcomeToken {
     pub fn new(outcome_id: OutcomeId, initial_supply: WrappedBalance, price: Price) -> Self {
         Self {
             total_supply: initial_supply,
-            balances: LookupMap::new(format!("OT:{}", outcome_id).as_bytes().to_vec()),
+            balances: UnorderedMap::new(format!("OT:{}", outcome_id).as_bytes().to_vec()),
             accounts_length: 0,
             outcome_id,
             price,
@@ -56,7 +53,23 @@ impl OutcomeToken {
         let new_balance = balance - amount;
         self.balances.insert(account_id, &new_balance);
         self.total_supply -= amount;
-        self.accounts_length -= if balance - amount == 0.0 { 1 } else { 0 };
+        self.accounts_length -= if new_balance == 0.0 && self.accounts_length != 0 {
+            1
+        } else {
+            0
+        };
+    }
+
+    /**
+     * @notice burn all the tokens
+     * @param account_id, the account_id to burn tokens for
+     */
+    pub fn burn_all(&mut self) {
+        for values in self.balances.to_vec() {
+            let account_id = &values.0;
+            let amount = values.1;
+            self.burn(account_id, amount);
+        }
     }
 
     /**
@@ -122,7 +135,7 @@ impl OutcomeToken {
      * @param account_id the account_id to deposit into
      * @param amount the amount of tokens to deposit
      */
-    fn deposit(&mut self, receiver_id: &AccountId, amount: WrappedBalance) {
+    fn _deposit(&mut self, receiver_id: &AccountId, amount: WrappedBalance) {
         assert!(amount > 0.0, "ERR_DEPOSIT_AMOUNT_LOWER_THAN_0");
 
         let receiver_balance = self.balances.get(&receiver_id).unwrap_or(0.0);
@@ -136,7 +149,7 @@ impl OutcomeToken {
      * @param account_id to withdraw from
      * @param amount of tokens to withdraw
      */
-    fn withdraw(&mut self, sender_id: &AccountId, amount: WrappedBalance) {
+    fn _withdraw(&mut self, sender_id: &AccountId, amount: WrappedBalance) {
         let sender_balance = self.balances.get(&sender_id).unwrap_or(0.0);
 
         assert!(amount > 0.0, "ERR_WITHDRAW_AMOUNT_LOWER_THAN_0");

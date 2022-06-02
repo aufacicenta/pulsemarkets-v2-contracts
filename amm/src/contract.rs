@@ -96,7 +96,7 @@ impl Market {
      *
      * @notice only while the market is open
      *
-     * @returns
+     * @returns amount of OT bought
      */
     #[payable]
     #[private]
@@ -113,21 +113,22 @@ impl Market {
             Some(token) => {
                 let mut outcome_token = token;
 
-                let priced_amount = (1.0 - outcome_token.get_price()) * amount;
-                let fee = priced_amount * self.fee;
+                let price = outcome_token.get_price();
+                let exchange_rate = (1.0 - price) * amount;
+                let fee = amount * self.fee;
                 let balance_boost = self.get_balance_boost_ratio();
-                let net_amount = (priced_amount * balance_boost) - fee;
+                let net_amount = (exchange_rate * balance_boost) - fee;
 
                 // @TODO distribute fee. Only when market is resolved?
                 // - 95% goes to $PULSE stakers
                 // - 5% goes to the user who created the market
 
                 println!(
-                    "BUY account_id: {}, supply: {}, price: {}, priced_amount: {}, fee: {}, fee_result: {}, balance_boost: {}, net_amount: {}\n",
+                    "BUY account_id: {}, supply: {}, price: {}, exchange_rate: {}, fee: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
                     sender_id,
                     outcome_token.total_supply(),
-                    outcome_token.get_price(),
-                    priced_amount,
+                    price,
+                    exchange_rate,
                     self.fee,
                     fee,
                     balance_boost,
@@ -137,7 +138,7 @@ impl Market {
                 outcome_token.mint(&sender_id, net_amount);
 
                 self.update_outcome_token(&outcome_token);
-                self.update_outcome_tokens_prices(payload.outcome_id, SetPriceOptions::Increase);
+                self.update_prices(payload.outcome_id, SetPriceOptions::Increase);
 
                 return net_amount;
             }
@@ -176,41 +177,34 @@ impl Market {
 
                 let payee = env::signer_account_id();
                 let price = outcome_token.get_price();
-                let priced_amount = amount * (1.0 + price);
+                let mut exchange_rate = amount / price;
 
-                if priced_amount <= 0.0 {
-                    env::panic_str("ERR_SELL_PRICED_AMOUNT_IS_0");
+                if self.is_resolved() {
+                    exchange_rate = exchange_rate + (amount / (1.0 - price));
                 }
 
-                let ot_weight = outcome_token.get_balance(&payee) / outcome_token.total_supply();
-                let cumulative_weight = self.get_cumulative_weight(outcome_id, ot_weight);
+                if exchange_rate <= 0.0 {
+                    env::panic_str("ERR_SELL_EXCHANGE_RATE_IS_0");
+                }
 
-                let weight = if self.is_resolved() {
-                    ot_weight
-                } else {
-                    cumulative_weight
-                };
-
-                let payment = (priced_amount) * (1.0 + weight);
+                let net_amount = exchange_rate;
 
                 println!(
-                    "SELL account_id: {}, ot_balance: {}, amount: {}, priced_amount: {}, supply: {}, price: {}, payment: {}, ot_weight: {}, cumulative_weight: {}\n",
+                    "SELL account_id: {}, ot_balance: {}, amount: {}, exchange_rate: {}, supply: {}, price: {}, net_amount: {}",
                     payee,
                     outcome_token.get_balance(&payee),
                     amount,
-                    priced_amount,
+                    exchange_rate,
                     outcome_token.total_supply(),
                     outcome_token.get_price(),
-                    payment,
-                    ot_weight,
-                    cumulative_weight,
+                    net_amount,
                 );
 
                 outcome_token.burn(&payee, amount);
 
                 Promise::new(self.collateral_token_account_id.clone()).function_call(
                     "ft_transfer".to_string(),
-                    json!({ "amount": payment, "receiver_id": payee })
+                    json!({ "amount": net_amount, "receiver_id": payee })
                         .to_string()
                         .into_bytes(),
                     FT_TRANSFER_BOND,
@@ -222,10 +216,10 @@ impl Market {
                 self.update_outcome_token(&outcome_token);
 
                 if !self.is_over() {
-                    self.update_outcome_tokens_prices(outcome_id, SetPriceOptions::Decrease);
+                    self.update_prices(outcome_id, SetPriceOptions::Decrease);
                 }
 
-                return payment;
+                return net_amount;
             }
             None => 0.0,
         }
@@ -258,7 +252,7 @@ impl Market {
         // - 95% goes to $PULSE stakers
         // - 5% goes to the user who created the market
 
-        self.update_outcome_tokens_prices(outcome_id, SetPriceOptions::Resolve);
+        self.burn_the_losers(outcome_id);
 
         self.resolved_at = Some(env::block_timestamp());
     }
@@ -311,11 +305,7 @@ impl Market {
         1 as Price / self.market.options.len() as Price
     }
 
-    fn update_outcome_tokens_prices(
-        &mut self,
-        outcome_id: OutcomeId,
-        set_price_option: SetPriceOptions,
-    ) {
+    fn update_prices(&mut self, outcome_id: OutcomeId, set_price_option: SetPriceOptions) {
         let price_ratio = self.get_price_ratio(outcome_id);
         let mut k: Price = 0.0;
 
@@ -369,24 +359,20 @@ impl Market {
             .insert(&outcome_token.outcome_id, outcome_token);
     }
 
-    fn get_cumulative_weight(&mut self, outcome_id: OutcomeId, weight: Weight) -> Weight {
-        let mut cumulative_weight = weight;
-
+    fn burn_the_losers(&mut self, outcome_id: OutcomeId) {
         for id in 0..self.market.options.len() {
             self.assert_is_valid_outcome(id as OutcomeId);
 
             match self.outcome_tokens.get(&(id as OutcomeId)) {
                 Some(token) => {
-                    let outcome_token = token;
+                    let mut outcome_token = token;
 
                     if outcome_token.outcome_id != outcome_id {
-                        cumulative_weight += (outcome_token.total_supply() * weight) / 100.0;
+                        outcome_token.burn_all();
                     }
                 }
                 None => {}
             }
         }
-
-        cumulative_weight
     }
 }

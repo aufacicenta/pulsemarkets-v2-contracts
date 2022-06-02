@@ -24,7 +24,7 @@ impl Market {
         };
 
         println!(
-            "GET_PRICE_RATIO accounts_length: {}, price_ratio: {}",
+            "GET_PRICE_RATIO accounts_length: {}, price_ratio: {}\n",
             accounts_length, price_ratio
         );
 
@@ -32,19 +32,19 @@ impl Market {
     }
 
     pub fn get_balance_boost_ratio(&self) -> WrappedBalance {
-        println!(
-            "GET_BALANCE_BOOST_RATIO ends_at: {}, block_timestamp: {}",
-            self.market.ends_at,
-            env::block_timestamp()
-        );
-
-        let start_at = if self.is_open() {
+        let from_timestamp = if self.is_open() {
             self.market.ends_at
         } else {
             self.market.starts_at
         };
 
-        start_at as f64 / env::block_timestamp() as f64
+        println!(
+            "GET_BALANCE_BOOST_RATIO from_timestamp: {}, block_timestamp: {}",
+            from_timestamp,
+            env::block_timestamp()
+        );
+
+        1.0 + (self.market.ends_at - env::block_timestamp()) as f64 / 1000.0
     }
 
     pub fn get_outcome_token(&self, outcome_id: OutcomeId) -> OutcomeToken {
