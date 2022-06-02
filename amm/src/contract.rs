@@ -108,17 +108,12 @@ impl Market {
      */
     #[payable]
     #[private]
-    pub fn remove_liquidity(
-        &mut self,
-        sender_id: AccountId,
-        amount: WrappedBalance,
-        _payload: AddLiquidityArgs,
-    ) -> WrappedBalance {
+    pub fn remove_liquidity(&mut self, amount: WrappedBalance) -> WrappedBalance {
         self.assert_is_published();
         self.assert_is_not_over();
         self.assert_is_not_resolved();
 
-        self.lp_token.burn(&sender_id, amount);
+        self.lp_token.burn(&env::signer_account_id(), amount);
         self.update_balance(-amount);
 
         amount
