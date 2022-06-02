@@ -220,13 +220,6 @@ mod tests {
             yes,
         );
 
-        // let mut outcome_token_yes: OutcomeToken = contract.get_outcome_token(yes);
-
-        // assert_eq!(
-        //     outcome_token_yes.total_supply(),
-        //     alice_balance + bob_balance + carol_balance + daniel_balance
-        // );
-
         // Buy NO token
         testing_env!(context.block_timestamp(starts_at - 40).build());
         buy(
@@ -259,7 +252,6 @@ mod tests {
 
         // alice sells half her OT balance while the event is ongoing
         testing_env!(context.signer_account_id(alice()).build());
-        // let amount = alice_balance / 2.0;
         alice_balance -= sell(
             &mut contract,
             &mut collateral_token_balance,

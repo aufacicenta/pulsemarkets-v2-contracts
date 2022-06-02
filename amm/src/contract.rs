@@ -107,6 +107,7 @@ impl Market {
         payload: BuyArgs,
     ) -> WrappedBalance {
         self.assert_is_published();
+        self.assert_is_not_over();
         self.assert_is_not_resolved();
 
         match self.outcome_tokens.get(&payload.outcome_id) {
@@ -169,6 +170,10 @@ impl Market {
     pub fn sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
         self.assert_is_published();
 
+        if !self.is_resolved() {
+            self.assert_is_not_under_resolution();
+        }
+
         match self.outcome_tokens.get(&outcome_id) {
             Some(token) => {
                 let mut outcome_token = token;
@@ -179,10 +184,6 @@ impl Market {
 
                 if self.is_resolved() {
                     exchange_rate = exchange_rate + (amount / (1.0 - price));
-                }
-
-                if exchange_rate <= 0.0 {
-                    env::panic_str("ERR_SELL_EXCHANGE_RATE_IS_0");
                 }
 
                 let net_amount = exchange_rate;
