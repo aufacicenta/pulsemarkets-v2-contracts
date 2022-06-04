@@ -123,7 +123,8 @@ impl Market {
                 // @TODO distribute fee. Only when market is resolved?
 
                 println!(
-                    "BUY account_id: {}, supply: {}, price: {}, exchange_rate: {}, fee_ratio: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
+                    "BUY outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, fee_ratio: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
+                    outcome_token.outcome_id,
                     sender_id,
                     outcome_token.total_supply(),
                     price,
@@ -189,12 +190,14 @@ impl Market {
                 let net_amount = exchange_rate;
 
                 println!(
-                    "SELL account_id: {}, ot_balance: {}, amount: {}, exchange_rate: {}, supply: {}, price: {}, net_amount: {}",
+                    "SELL outcome_id: {}, account_id: {}, ot_balance: {}, amount: {}, exchange_rate: {}, supply: {}, is_resolved: {}, price: {}, net_amount: {}",
+                    outcome_id,
                     payee,
                     outcome_token.get_balance(&payee),
                     amount,
                     exchange_rate,
                     outcome_token.total_supply(),
+                    self.is_resolved(),
                     outcome_token.get_price(),
                     net_amount,
                 );
