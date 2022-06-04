@@ -43,7 +43,6 @@ impl Market {
             dao_account_id,
             collateral_token_account_id,
             balance: 0.0,
-            lp_token: OutcomeToken::new(0, 0.0, 1.0),
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
             fee_ratio,
             resolution_window,
@@ -80,48 +79,6 @@ impl Market {
 
         self.assert_price_constant();
         self.published_at = Some(env::block_timestamp());
-    }
-
-    /**
-     *
-     */
-    #[payable]
-    #[private]
-    pub fn add_liquidity(
-        &mut self,
-        sender_id: AccountId,
-        amount: WrappedBalance,
-        _payload: AddLiquidityArgs,
-    ) -> WrappedBalance {
-        self.assert_is_published();
-        self.assert_is_not_over();
-        self.assert_is_not_resolved();
-
-        self.lp_token.mint(&sender_id, amount);
-        self.update_balance(amount);
-
-        amount
-    }
-
-    /**
-     *
-     */
-    #[payable]
-    #[private]
-    pub fn remove_liquidity(
-        &mut self,
-        sender_id: AccountId,
-        amount: WrappedBalance,
-        _payload: AddLiquidityArgs,
-    ) -> WrappedBalance {
-        self.assert_is_published();
-        self.assert_is_not_over();
-        self.assert_is_not_resolved();
-
-        self.lp_token.burn(&sender_id, amount);
-        self.update_balance(-amount);
-
-        amount
     }
 
     /**
@@ -232,8 +189,8 @@ impl Market {
 
                 let balance = self.get_balance();
                 let payee = env::signer_account_id();
-                let price = outcome_token.get_price();
-                let mut exchange_rate = amount * (1.0 + price);
+                let price = outcome_token.total_supply() / balance;
+                let mut exchange_rate = amount / price;
 
                 if self.is_resolved() {
                     exchange_rate = exchange_rate + (amount / (1.0 - price));

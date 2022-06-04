@@ -37,7 +37,6 @@ pub struct Market {
     pub dao_account_id: AccountId,
     pub collateral_token_account_id: AccountId,
     pub balance: WrappedBalance,
-    pub lp_token: OutcomeToken,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
     // Decimal fee to charge upon a bet
@@ -78,15 +77,6 @@ pub struct BuyArgs {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct AddLiquidityArgs {
-    // id of the outcome that shares are to be purchased from
-// pub outcome_id: OutcomeId,
-// the minimum amount of share tokens the user expects out, this is to prevent slippage
-// pub min_shares_out: WrappedBalance,
-}
-
-#[derive(Serialize, Deserialize)]
 pub enum Payload {
     BuyArgs(BuyArgs),
-    AddLiquidityArgs(AddLiquidityArgs),
 }
