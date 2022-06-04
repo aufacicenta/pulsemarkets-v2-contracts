@@ -14,9 +14,9 @@ impl Market {
 
     pub fn get_price_ratio(&self, outcome_id: OutcomeId) -> PriceRatio {
         let outcome_token = self.get_outcome_token(outcome_id);
-        let accounts_length = outcome_token.get_accounts_length();
+        let accounts_length = outcome_token.get_accounts_length() + 1;
 
-        let price_ratio = (1.0 / accounts_length as PriceRatio) / 100.0;
+        let price_ratio = (1.0 - (1.0 / accounts_length as PriceRatio)) / 100.0;
 
         println!(
             "GET_PRICE_RATIO accounts_length: {}, price_ratio: {}\n",
