@@ -36,17 +36,21 @@ pub struct Market {
     pub market: MarketData,
     pub dao_account_id: AccountId,
     pub collateral_token_account_id: AccountId,
-    pub balance: WrappedBalance,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
     // Decimal fee to charge upon a bet
-    pub fee_ratio: WrappedBalance,
+    pub fee: WrappedBalance,
     // When the market is published
     pub published_at: Option<Timestamp>,
     // When the market is published
     pub resolved_at: Option<Timestamp>,
     // Time to free up the market
     pub resolution_window: Timestamp,
+}
+
+pub enum SetPriceOptions {
+    Increase,
+    Decrease,
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]

@@ -8,12 +8,8 @@ impl Market {
         self.market.clone()
     }
 
-    pub fn get_balance(&self) -> WrappedBalance {
-        self.balance
-    }
-
-    pub fn get_fee_ratio(&self) -> WrappedBalance {
-        self.fee_ratio
+    pub fn get_fee(&self) -> WrappedBalance {
+        self.fee
     }
 
     pub fn get_price_ratio(&self, outcome_id: OutcomeId) -> PriceRatio {

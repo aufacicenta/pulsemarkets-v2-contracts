@@ -29,7 +29,7 @@ impl Market {
         market: MarketData,
         dao_account_id: AccountId,
         collateral_token_account_id: AccountId,
-        fee_ratio: WrappedBalance,
+        fee: WrappedBalance,
         resolution_window: Timestamp,
     ) -> Self {
         if env::state_exists() {
@@ -42,9 +42,8 @@ impl Market {
             market,
             dao_account_id,
             collateral_token_account_id,
-            balance: 0.0,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
-            fee_ratio,
+            fee,
             resolution_window,
             published_at: None,
             resolved_at: None,
@@ -115,38 +114,30 @@ impl Market {
             Some(token) => {
                 let mut outcome_token = token;
 
-                let balance = self.get_balance();
-                let price = if outcome_token.total_supply() == 0.0 || balance == 0.0 {
-                    outcome_token.get_price()
-                } else {
-                    outcome_token.total_supply() / balance
-                };
+                let price = outcome_token.get_price();
                 let exchange_rate = (1.0 - price) * amount;
-                let fee = amount * self.fee_ratio;
+                let fee = amount * self.fee;
                 let balance_boost = self.get_balance_boost_ratio();
                 let net_amount = (exchange_rate * balance_boost) - fee;
 
                 // @TODO distribute fee. Only when market is resolved?
 
                 println!(
-                    "BUY outcome_id: {}, account_id: {}, supply: {}, price: {}, balance: {}, exchange_rate: {}, fee: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
-                    outcome_token.outcome_id,
+                    "BUY account_id: {}, supply: {}, price: {}, exchange_rate: {}, fee: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
                     sender_id,
                     outcome_token.total_supply(),
                     price,
-                    balance,
                     exchange_rate,
-                    self.fee_ratio,
+                    self.fee,
                     fee,
                     balance_boost,
                     net_amount,
                 );
 
                 outcome_token.mint(&sender_id, net_amount);
-                self.update_balance(amount);
 
                 self.update_outcome_token(&outcome_token);
-                self.update_prices(payload.outcome_id, price);
+                self.update_prices(payload.outcome_id, SetPriceOptions::Increase);
 
                 return net_amount;
             }
@@ -187,9 +178,8 @@ impl Market {
             Some(token) => {
                 let mut outcome_token = token;
 
-                let balance = self.get_balance();
                 let payee = env::signer_account_id();
-                let price = outcome_token.total_supply() / balance;
+                let price = outcome_token.get_price();
                 let mut exchange_rate = amount / price;
 
                 if self.is_resolved() {
@@ -199,12 +189,10 @@ impl Market {
                 let net_amount = exchange_rate;
 
                 println!(
-                    "SELL outcome_id: {}, account_id: {}, ot_balance: {}, amount: {}, balance: {}, exchange_rate: {}, supply: {}, price: {}, net_amount: {}",
-                    outcome_id,
+                    "SELL account_id: {}, ot_balance: {}, amount: {}, exchange_rate: {}, supply: {}, price: {}, net_amount: {}",
                     payee,
                     outcome_token.get_balance(&payee),
                     amount,
-                    balance,
                     exchange_rate,
                     outcome_token.total_supply(),
                     outcome_token.get_price(),
@@ -212,7 +200,6 @@ impl Market {
                 );
 
                 outcome_token.burn(&payee, amount);
-                self.update_balance(-net_amount);
 
                 Promise::new(self.collateral_token_account_id.clone()).function_call(
                     "ft_transfer".to_string(),
@@ -228,7 +215,7 @@ impl Market {
                 self.update_outcome_token(&outcome_token);
 
                 if !self.is_over() {
-                    self.update_prices(outcome_id, price);
+                    self.update_prices(outcome_id, SetPriceOptions::Decrease);
                 }
 
                 return net_amount;
@@ -317,7 +304,8 @@ impl Market {
         1 as Price / self.market.options.len() as Price
     }
 
-    fn update_prices(&mut self, outcome_id: OutcomeId, price: Price) {
+    fn update_prices(&mut self, outcome_id: OutcomeId, set_price_option: SetPriceOptions) {
+        let price_ratio = self.get_price_ratio(outcome_id);
         let mut k: Price = 0.0;
 
         for id in 0..self.market.options.len() {
@@ -329,9 +317,23 @@ impl Market {
 
                     // @TODO self.price_ratio may be updated so that it doesn't reach 1
                     if outcome_token.outcome_id == outcome_id {
-                        outcome_token.set_price(1.0 - price);
+                        match set_price_option {
+                            SetPriceOptions::Increase => {
+                                outcome_token.increase_price(price_ratio);
+                            }
+                            SetPriceOptions::Decrease => {
+                                outcome_token.decrease_price(price_ratio);
+                            }
+                        }
                     } else {
-                        outcome_token.set_price(price);
+                        match set_price_option {
+                            SetPriceOptions::Increase => {
+                                outcome_token.decrease_price(price_ratio);
+                            }
+                            SetPriceOptions::Decrease => {
+                                outcome_token.increase_price(price_ratio);
+                            }
+                        }
                     }
 
                     self.update_outcome_token(&outcome_token);
@@ -348,10 +350,6 @@ impl Market {
     fn update_outcome_token(&mut self, outcome_token: &OutcomeToken) {
         self.outcome_tokens
             .insert(&outcome_token.outcome_id, outcome_token);
-    }
-
-    fn update_balance(&mut self, balance: WrappedBalance) {
-        self.balance += balance;
     }
 
     fn burn_the_losers(&mut self, outcome_id: OutcomeId) {

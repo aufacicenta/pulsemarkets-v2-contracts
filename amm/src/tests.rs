@@ -89,7 +89,7 @@ mod tests {
     fn resolve(c: &mut Market, collateral_token_balance: &mut WrappedBalance, outcome_id: u64) {
         c.resolve(outcome_id);
         let balance = *collateral_token_balance;
-        *collateral_token_balance -= balance * c.get_fee_ratio();
+        *collateral_token_balance -= balance * c.get_fee();
     }
 
     fn create_market_data(
