@@ -29,7 +29,7 @@ impl Market {
         market: MarketData,
         dao_account_id: AccountId,
         collateral_token_account_id: AccountId,
-        fee: WrappedBalance,
+        fee_ratio: WrappedBalance,
         resolution_window: Timestamp,
     ) -> Self {
         if env::state_exists() {
@@ -43,7 +43,7 @@ impl Market {
             dao_account_id,
             collateral_token_account_id,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
-            fee,
+            fee_ratio,
             resolution_window,
             published_at: None,
             resolved_at: None,
@@ -116,19 +116,19 @@ impl Market {
 
                 let price = outcome_token.get_price();
                 let exchange_rate = (1.0 - price) * amount;
-                let fee = amount * self.fee;
+                let fee = amount * self.get_fee_ratio();
                 let balance_boost = self.get_balance_boost_ratio();
                 let net_amount = (exchange_rate * balance_boost) - fee;
 
                 // @TODO distribute fee. Only when market is resolved?
 
                 println!(
-                    "BUY account_id: {}, supply: {}, price: {}, exchange_rate: {}, fee: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
+                    "BUY account_id: {}, supply: {}, price: {}, exchange_rate: {}, fee_ratio: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
                     sender_id,
                     outcome_token.total_supply(),
                     price,
                     exchange_rate,
-                    self.fee,
+                    self.get_fee_ratio(),
                     fee,
                     balance_boost,
                     net_amount,

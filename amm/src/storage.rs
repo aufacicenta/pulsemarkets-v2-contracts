@@ -39,7 +39,7 @@ pub struct Market {
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
     // Decimal fee to charge upon a bet
-    pub fee: WrappedBalance,
+    pub fee_ratio: WrappedBalance,
     // When the market is published
     pub published_at: Option<Timestamp>,
     // When the market is published
