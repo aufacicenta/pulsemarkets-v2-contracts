@@ -1,18 +1,16 @@
 use near_sdk::{
     borsh::{self, BorshDeserialize, BorshSerialize},
     collections::{LookupMap, UnorderedMap},
-    json_types::U64,
     near_bindgen,
     serde::{Deserialize, Serialize},
     AccountId, BorshStorageKey,
 };
 
 pub type OutcomeId = u64;
-pub type Timestamp = u64;
+pub type Timestamp = i64;
 pub type LiquidityProvider = AccountId;
 pub type Price = f32;
 pub type PriceRatio = f32;
-pub type WrappedTimestamp = U64;
 pub type WrappedBalance = f32;
 pub type Weight = f32;
 

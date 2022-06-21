@@ -77,7 +77,7 @@ impl Market {
         }
 
         self.assert_price_constant();
-        self.published_at = Some(env::block_timestamp());
+        self.published_at = Some(self.get_block_timestamp());
     }
 
     /**
@@ -256,7 +256,7 @@ impl Market {
 
         self.burn_the_losers(outcome_id);
 
-        self.resolved_at = Some(env::block_timestamp());
+        self.resolved_at = Some(self.get_block_timestamp());
     }
 }
 

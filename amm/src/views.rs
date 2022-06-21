@@ -1,4 +1,4 @@
-use near_sdk::{env, near_bindgen};
+use near_sdk::{env, near_bindgen, AccountId};
 
 use crate::storage::*;
 
@@ -30,16 +30,43 @@ impl Market {
         println!(
             "GET_BALANCE_BOOST_RATIO from_timestamp: {}, block_timestamp: {}",
             self.market.ends_at,
-            env::block_timestamp()
+            self.get_block_timestamp()
         );
 
-        1.0 + (self.market.ends_at - env::block_timestamp()) as WrappedBalance / 1000.0
+        1.0 + (self.market.ends_at - self.get_block_timestamp()) as WrappedBalance
+            / 1000000000000000.0
     }
 
     pub fn get_outcome_token(&self, outcome_id: OutcomeId) -> OutcomeToken {
         match self.outcome_tokens.get(&outcome_id) {
             Some(token) => token,
             None => env::panic_str("ERR_INVALID_OUTCOME_ID"),
+        }
+    }
+
+    pub fn get_block_timestamp(&self) -> Timestamp {
+        env::block_timestamp().try_into().unwrap()
+    }
+
+    pub fn dao_account_id(&self) -> AccountId {
+        self.dao_account_id.clone()
+    }
+
+    pub fn collateral_token_account_id(&self) -> AccountId {
+        self.collateral_token_account_id.clone()
+    }
+
+    pub fn published_at(&self) -> Timestamp {
+        match self.published_at {
+            Some(timestamp) => timestamp,
+            None => env::panic_str("ERR_PUBLISHED_AT"),
+        }
+    }
+
+    pub fn resolved_at(&self) -> Timestamp {
+        match self.resolved_at {
+            Some(timestamp) => timestamp,
+            None => env::panic_str("ERR_RESOLVED_AT"),
         }
     }
 
@@ -58,15 +85,15 @@ impl Market {
     }
 
     pub fn is_open(&self) -> bool {
-        self.market.starts_at < env::block_timestamp()
-            && self.market.ends_at >= env::block_timestamp()
+        self.market.starts_at < self.get_block_timestamp()
+            && self.market.ends_at >= self.get_block_timestamp()
     }
 
     pub fn is_over(&self) -> bool {
-        env::block_timestamp() > self.market.ends_at
+        self.get_block_timestamp() > self.market.ends_at
     }
 
     pub fn is_resolution_window_expired(&self) -> bool {
-        env::block_timestamp() > (self.market.ends_at + self.resolution_window)
+        self.get_block_timestamp() > (self.market.ends_at + self.resolution_window)
     }
 }

@@ -72,7 +72,7 @@ mod tests {
         });
 
         *collateral_token_balance += amount;
-        c.ft_on_transfer(account_id, amount, msg.to_string())
+        c.ft_on_transfer(account_id, amount.to_string(), msg.to_string())
     }
 
     fn sell(
@@ -95,8 +95,8 @@ mod tests {
     fn create_market_data(
         description: String,
         options: u8,
-        starts_at: u64,
-        ends_at: u64,
+        starts_at: i64,
+        ends_at: i64,
     ) -> MarketData {
         MarketData {
             description,
@@ -108,8 +108,8 @@ mod tests {
         }
     }
 
-    fn add_expires_at_nanos(offset: u32) -> u64 {
-        let now = Utc::now().timestamp_subsec_nanos();
+    fn add_expires_at_nanos(offset: i64) -> i64 {
+        let now = Utc::now().timestamp_nanos();
         (now + offset).into()
     }
 
@@ -171,7 +171,7 @@ mod tests {
         let no = 1;
 
         let now = add_expires_at_nanos(0);
-        testing_env!(context.block_timestamp(now).build());
+        testing_env!(context.block_timestamp(now.try_into().unwrap()).build());
         let starts_at = now + 40;
         let ends_at = starts_at + 40;
         let resolution_window = 40;
@@ -184,7 +184,9 @@ mod tests {
         // @TODO publish may also be made by a CT ft_on_transfer
         contract.publish();
 
-        testing_env!(context.block_timestamp(starts_at - 40).build());
+        testing_env!(context
+            .block_timestamp((starts_at - 40).try_into().unwrap())
+            .build());
         let mut alice_balance = buy(
             &mut contract,
             &mut collateral_token_balance,
@@ -193,7 +195,9 @@ mod tests {
             yes,
         );
 
-        testing_env!(context.block_timestamp(starts_at - 30).build());
+        testing_env!(context
+            .block_timestamp((starts_at - 30).try_into().unwrap())
+            .build());
         let mut bob_balance = buy(
             &mut contract,
             &mut collateral_token_balance,
@@ -202,7 +206,9 @@ mod tests {
             yes,
         );
 
-        testing_env!(context.block_timestamp(starts_at - 20).build());
+        testing_env!(context
+            .block_timestamp((starts_at - 20).try_into().unwrap())
+            .build());
         let mut carol_balance = buy(
             &mut contract,
             &mut collateral_token_balance,
@@ -211,7 +217,9 @@ mod tests {
             yes,
         );
 
-        testing_env!(context.block_timestamp(starts_at - 10).build());
+        testing_env!(context
+            .block_timestamp((starts_at - 10).try_into().unwrap())
+            .build());
         let mut daniel_balance = buy(
             &mut contract,
             &mut collateral_token_balance,
@@ -221,7 +229,9 @@ mod tests {
         );
 
         // Buy NO token
-        testing_env!(context.block_timestamp(starts_at - 40).build());
+        testing_env!(context
+            .block_timestamp((starts_at - 40).try_into().unwrap())
+            .build());
         buy(
             &mut contract,
             &mut collateral_token_balance,
@@ -230,7 +240,9 @@ mod tests {
             no,
         );
 
-        testing_env!(context.block_timestamp(starts_at - 30).build());
+        testing_env!(context
+            .block_timestamp((starts_at - 30).try_into().unwrap())
+            .build());
         buy(
             &mut contract,
             &mut collateral_token_balance,
@@ -239,7 +251,9 @@ mod tests {
             no,
         );
 
-        testing_env!(context.block_timestamp(starts_at - 20).build());
+        testing_env!(context
+            .block_timestamp((starts_at - 20).try_into().unwrap())
+            .build());
         let mut gus_balance = buy(
             &mut contract,
             &mut collateral_token_balance,
