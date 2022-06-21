@@ -53,9 +53,10 @@ pub enum SetPriceOptions {
     Decrease,
 }
 
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
 pub struct OutcomeToken {
     // map `AccountId` to corresponding `Balance` in the market
+    #[serde(skip_serializing)]
     pub balances: UnorderedMap<AccountId, WrappedBalance>,
     // keep the number of accounts with positive balance. Use for calculating the price_ratio
     pub accounts_length: u64,
