@@ -1,7 +1,7 @@
 use near_sdk::collections::LookupMap;
 use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
-use near_sdk::{env, near_bindgen, AccountId, Promise};
+use near_sdk::{env, log, near_bindgen, AccountId, Promise};
 use std::default::Default;
 
 use crate::consts::*;
@@ -122,8 +122,7 @@ impl Market {
 
                 // @TODO distribute fee. Only when market is resolved?
 
-                println!(
-                    "BUY outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, fee_ratio: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
+                log!("BUY outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, fee_ratio: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
                     outcome_token.outcome_id,
                     sender_id,
                     outcome_token.total_supply(),
@@ -189,7 +188,7 @@ impl Market {
 
                 let net_amount = exchange_rate;
 
-                println!(
+                log!(
                     "SELL outcome_id: {}, account_id: {}, ot_balance: {}, amount: {}, exchange_rate: {}, supply: {}, is_resolved: {}, price: {}, net_amount: {}",
                     outcome_id,
                     payee,

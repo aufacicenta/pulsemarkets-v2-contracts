@@ -95,4 +95,7 @@ near call usdt.fakes.testnet ft_transfer_call '{"receiver_id":"amm-9.aufacicenta
 <!-- Get Outcome token (prices should have been updated) -->
 near view amm-9.aufacicenta.testnet get_outcome_token '{"outcome_id":0}'
 near view amm-9.aufacicenta.testnet get_outcome_token '{"outcome_id":1}'
+
+<!-- Check NEP141 Collateral Token balance -->
+near view usdt.fakes.testnet ft_balance_of '{"account_id":"amm-10.aufacicenta.testnet"}'
 ```

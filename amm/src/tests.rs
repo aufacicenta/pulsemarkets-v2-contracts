@@ -1,11 +1,10 @@
 #[cfg(test)]
 mod tests {
     use crate::storage::*;
-    use crate::FungibleTokenReceiver;
     use chrono::Utc;
     use near_sdk::test_utils::test_env::{alice, bob, carol};
     use near_sdk::test_utils::VMContextBuilder;
-    use near_sdk::{serde_json, testing_env, AccountId, Balance};
+    use near_sdk::{testing_env, AccountId, Balance};
 
     const _ATTACHED_DEPOSIT: Balance = 1_000_000_000_000_000_000_000_000; // 1 Near
 
@@ -65,14 +64,8 @@ mod tests {
         amount: WrappedBalance,
         outcome_id: u64,
     ) -> WrappedBalance {
-        let msg = serde_json::json!({
-            "BuyArgs": {
-                "outcome_id": outcome_id,
-            }
-        });
-
         *collateral_token_balance += amount;
-        c.ft_on_transfer(account_id, amount.to_string(), msg.to_string())
+        c.buy(account_id, amount, BuyArgs { outcome_id })
     }
 
     fn sell(

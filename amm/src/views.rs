@@ -1,4 +1,4 @@
-use near_sdk::{env, near_bindgen, AccountId};
+use near_sdk::{env, log, near_bindgen, AccountId};
 
 use crate::storage::*;
 
@@ -18,16 +18,17 @@ impl Market {
 
         let price_ratio = (1.0 - (1.0 / accounts_length as PriceRatio)) / 100.0;
 
-        println!(
+        log!(
             "GET_PRICE_RATIO accounts_length: {}, price_ratio: {}\n",
-            accounts_length, price_ratio
+            accounts_length,
+            price_ratio
         );
 
         price_ratio
     }
 
     pub fn get_balance_boost_ratio(&self) -> WrappedBalance {
-        println!(
+        log!(
             "GET_BALANCE_BOOST_RATIO from_timestamp: {}, block_timestamp: {}",
             self.market.ends_at,
             self.get_block_timestamp()
