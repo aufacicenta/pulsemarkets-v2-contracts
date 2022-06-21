@@ -71,3 +71,28 @@ Only when the event has ended, the market can be resoluted, meaning that someone
 In Pulse, not a single person can resolute a market, instead, a group of persons belonging to a Decentralized Autonomous Organization — DAO —, vote for the winning outcome within a Sputnik2 DAO.
 
 > A Sputnik2 DAO is also a set of smart contracts that lets its members (wallets) vote on proposals. There's a special type of proposal called: FunctionCall proposal, that will call another smart contract function with a given set of parameters. In the case of Pulse's AMMs, the parameters determine what outcome to resolute.
+
+## Deployment
+
+To deploy this contract using Near CLI:
+
+```
+<!-- Create the account -->
+near create-account amm-9.aufacicenta.testnet --masterAccount aufacicenta.testnet --initialBalance 10
+
+<!-- Deploy the contract -->
+near deploy --wasmFile target/wasm32-unknown-unknown/release/amm.wasm --accountId amm-9.aufacicenta.testnet --initFunction new --initArgs '{"market":{"description":"Mamifut vs. Cremas, Jul 1st, 2022","info":"market info","category":"sports","options":["mamifut","cremas"],"starts_at":1656698400000000000,"ends_at":1656703800000000000},"dao_account_id":"pulse-dao.sputnikv2.testnet","collateral_token_account_id":"usdt.fakes.testnet","fee_ratio":0.02,"resolution_window":259200000000000}'
+
+<!-- Publish the outcomes -->
+near call amm-9.aufacicenta.testnet publish --accountId aufacicenta.testnet --gas=60000000000000
+
+<!-- Make a storage_deposit call to the NEP141 collateral -->
+near call usdt.fakes.testnet storage_deposit --accountId amm-9.aufacicenta.testnet --deposit 0.00235
+
+<!-- Transfer USDT (the collateral registered on deployment) to the AMM contract to Buy an outcome -->
+near call usdt.fakes.testnet ft_transfer_call '{"receiver_id":"amm-9.aufacicenta.testnet","amount":"5000000","msg":"{\"BuyArgs\":{\"outcome_id\":0}}"}' --accountId aufacicenta.testnet --depositYocto 1 --gas=33000000000000
+
+<!-- Get Outcome token (prices should have been updated) -->
+near view amm-9.aufacicenta.testnet get_outcome_token '{"outcome_id":0}'
+near view amm-9.aufacicenta.testnet get_outcome_token '{"outcome_id":1}'
+```

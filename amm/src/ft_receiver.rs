@@ -7,7 +7,7 @@ pub trait FungibleTokenReceiver {
     fn ft_on_transfer(
         &mut self,
         sender_id: AccountId,
-        amount: WrappedBalance,
+        amount: String,
         msg: String,
     ) -> WrappedBalance;
 }
@@ -25,12 +25,12 @@ impl FungibleTokenReceiver for Market {
     fn ft_on_transfer(
         &mut self,
         sender_id: AccountId,
-        amount: WrappedBalance,
+        amount: String,
         msg: String,
     ) -> WrappedBalance {
         self.assert_is_published();
 
-        let amount: WrappedBalance = amount.into();
+        let amount: WrappedBalance = amount.parse::<WrappedBalance>().unwrap();
         assert!(amount > 0.0, "ERR_ZERO_AMOUNT");
 
         let payload: Payload = serde_json::from_str(&msg).expect("ERR_INVALID_PAYLOAD");
