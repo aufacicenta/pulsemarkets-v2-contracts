@@ -97,4 +97,8 @@ impl Market {
     pub fn is_resolution_window_expired(&self) -> bool {
         self.get_block_timestamp() > (self.market.ends_at + self.resolution_window)
     }
+
+    pub fn balance_of(&self, outcome_id: OutcomeId, account_id: AccountId) -> WrappedBalance {
+        self.get_outcome_token(outcome_id).get_balance(&account_id)
+    }
 }
