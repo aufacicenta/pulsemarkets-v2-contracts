@@ -34,6 +34,7 @@ pub struct Market {
     pub market: MarketData,
     pub dao_account_id: AccountId,
     pub collateral_token_account_id: AccountId,
+    pub ct_balance: WrappedBalance,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
     // Decimal fee to charge upon a bet

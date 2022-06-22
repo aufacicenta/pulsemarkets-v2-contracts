@@ -155,19 +155,18 @@ mod tests {
     }
 
     #[test]
-    fn test_binary_market() {
+    fn test_single_trade_binary_unresolved() {
         let mut context = setup_context();
 
         let mut collateral_token_balance: WrappedBalance = 0.0;
 
         let yes = 0;
-        let no = 1;
 
         let now = add_expires_at_nanos(0);
         testing_env!(context.block_timestamp(now.try_into().unwrap()).build());
-        let starts_at = now + 40;
-        let ends_at = starts_at + 40;
-        let resolution_window = 40;
+        let starts_at = now * 2;
+        let ends_at = now * 3;
+        let resolution_window = now * 4;
 
         let market_data: MarketData =
             create_market_data("a market description".to_string(), 2, starts_at, ends_at);
@@ -178,7 +177,166 @@ mod tests {
         contract.publish();
 
         testing_env!(context
-            .block_timestamp((starts_at - 40).try_into().unwrap())
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.25)) as u64)
+            .build());
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            100.0,
+            yes,
+        );
+
+        testing_env!(context
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.5)) as u64)
+            .build());
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            100.0,
+            yes,
+        );
+
+        assert_eq!(collateral_token_balance, 200.0);
+
+        // alice sells all her OT balance while the event is ongoing
+        let mut alice_balance = contract.balance_of(yes, alice());
+        testing_env!(context.signer_account_id(alice()).build());
+        sell(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice_balance,
+            yes,
+        );
+
+        let outcome_token_yes = contract.get_outcome_token(yes);
+        alice_balance = contract.balance_of(yes, alice());
+        assert_eq!(alice_balance, 0.0);
+
+        assert_eq!(outcome_token_yes.total_supply(), 0.0);
+        assert_eq!(collateral_token_balance, 0.0);
+    }
+
+    #[test]
+    fn test_multiple_trade_binary_unresolved() {
+        let mut context = setup_context();
+
+        let mut collateral_token_balance: WrappedBalance = 0.0;
+
+        let yes = 0;
+        let no = 1;
+
+        let now = add_expires_at_nanos(0);
+        testing_env!(context.block_timestamp(now.try_into().unwrap()).build());
+        let starts_at = now * 2;
+        let ends_at = now * 3;
+        let resolution_window = now * 4;
+
+        let market_data: MarketData =
+            create_market_data("a market description".to_string(), 2, starts_at, ends_at);
+
+        let mut contract: Market = setup_contract(market_data, resolution_window);
+
+        // @TODO publish may also be made by a CT ft_on_transfer
+        contract.publish();
+
+        // boost the balance
+        testing_env!(context
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.25)) as u64)
+            .build());
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            100.0,
+            yes,
+        );
+
+        // boost the balance
+        testing_env!(context
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.30)) as u64)
+            .build());
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            bob(),
+            100.0,
+            no,
+        );
+
+        // boost the balance
+        testing_env!(context
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.5)) as u64)
+            .build());
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            100.0,
+            yes,
+        );
+
+        assert_eq!(collateral_token_balance, 300.0);
+
+        // alice sells all her OT balance while the event is ongoing
+        let alice_balance = contract.balance_of(yes, alice());
+        testing_env!(context.signer_account_id(alice()).build());
+        sell(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice_balance,
+            yes,
+        );
+
+        let outcome_token_yes = contract.get_outcome_token(yes);
+        let alice_balance = contract.balance_of(yes, alice());
+        assert_eq!(alice_balance, 0.0);
+        assert_eq!(outcome_token_yes.total_supply(), 0.0);
+
+        // bob sells all her OT balance while the event is ongoing
+        let bob_balance = contract.balance_of(no, bob());
+        testing_env!(context.signer_account_id(bob()).build());
+        sell(
+            &mut contract,
+            &mut collateral_token_balance,
+            bob_balance,
+            no,
+        );
+
+        let outcome_token_no = contract.get_outcome_token(no);
+        let bob_balance = contract.balance_of(no, bob());
+        assert_eq!(bob_balance, 0.0);
+        assert_eq!(outcome_token_no.total_supply(), 0.0);
+
+        assert_eq!(collateral_token_balance, 0.0);
+    }
+
+    #[test]
+    fn test_binary_market() {
+        let mut context = setup_context();
+
+        let mut collateral_token_balance: WrappedBalance = 0.0;
+
+        let yes = 0;
+        let no = 1;
+
+        let now = add_expires_at_nanos(0);
+        testing_env!(context.block_timestamp(now.try_into().unwrap()).build());
+        let starts_at = now * 2;
+        let ends_at = now * 3;
+        let resolution_window = now * 4;
+
+        let market_data: MarketData =
+            create_market_data("a market description".to_string(), 2, starts_at, ends_at);
+
+        let mut contract: Market = setup_contract(market_data, resolution_window);
+
+        // @TODO publish may also be made by a CT ft_on_transfer
+        contract.publish();
+
+        testing_env!(context
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.25)) as u64)
             .build());
         let mut alice_balance = buy(
             &mut contract,
@@ -189,7 +347,7 @@ mod tests {
         );
 
         testing_env!(context
-            .block_timestamp((starts_at - 30).try_into().unwrap())
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.5)) as u64)
             .build());
         let mut bob_balance = buy(
             &mut contract,
@@ -200,7 +358,7 @@ mod tests {
         );
 
         testing_env!(context
-            .block_timestamp((starts_at - 20).try_into().unwrap())
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.75)) as u64)
             .build());
         let mut carol_balance = buy(
             &mut contract,
@@ -211,7 +369,7 @@ mod tests {
         );
 
         testing_env!(context
-            .block_timestamp((starts_at - 10).try_into().unwrap())
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.9)) as u64)
             .build());
         let mut daniel_balance = buy(
             &mut contract,
@@ -223,7 +381,7 @@ mod tests {
 
         // Buy NO token
         testing_env!(context
-            .block_timestamp((starts_at - 40).try_into().unwrap())
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.25)) as u64)
             .build());
         buy(
             &mut contract,
@@ -234,7 +392,7 @@ mod tests {
         );
 
         testing_env!(context
-            .block_timestamp((starts_at - 30).try_into().unwrap())
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.5)) as u64)
             .build());
         buy(
             &mut contract,
@@ -245,7 +403,7 @@ mod tests {
         );
 
         testing_env!(context
-            .block_timestamp((starts_at - 20).try_into().unwrap())
+            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.75)) as u64)
             .build());
         let mut gus_balance = buy(
             &mut contract,
@@ -278,7 +436,7 @@ mod tests {
         assert_eq!(gus_balance, 0.0);
 
         // Event is over. Resolution window is open
-        let now = (ends_at + resolution_window - 20) as u32;
+        let now = (resolution_window - 20) as u32;
         testing_env!(context.block_timestamp(now.into()).build());
 
         // Resolve the market

@@ -42,6 +42,7 @@ impl Market {
             market,
             dao_account_id,
             collateral_token_account_id,
+            ct_balance: 0.0,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
             fee_ratio,
             resolution_window,
@@ -115,31 +116,33 @@ impl Market {
                 let mut outcome_token = token;
 
                 let price = outcome_token.get_price();
-                let exchange_rate = (1.0 - price) * amount;
                 let fee = amount * self.get_fee_ratio();
+                let exchange_rate = (amount - fee) * (1.0 - price);
                 let balance_boost = self.get_balance_boost_ratio();
-                let net_amount = (exchange_rate * balance_boost) - fee;
+                let amount_mintable = exchange_rate * balance_boost;
 
                 // @TODO distribute fee. Only when market is resolved?
 
-                log!("BUY outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, fee_ratio: {}, fee_result: {}, balance_boost: {}, net_amount: {}",
+                log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, balance_boost: {}, amount_mintable: {}",
+                    amount,
+                    self.get_fee_ratio(),
+                    fee,
                     outcome_token.outcome_id,
                     sender_id,
                     outcome_token.total_supply(),
                     price,
                     exchange_rate,
-                    self.get_fee_ratio(),
-                    fee,
                     balance_boost,
-                    net_amount,
+                    amount_mintable,
                 );
 
-                outcome_token.mint(&sender_id, net_amount);
+                outcome_token.mint(&sender_id, amount_mintable);
+                self.update_ct_balance(amount);
 
                 self.update_outcome_token(&outcome_token);
                 self.update_prices(payload.outcome_id, SetPriceOptions::Increase);
 
-                return net_amount;
+                return amount_mintable;
             }
             None => 0.0,
         }
@@ -179,33 +182,28 @@ impl Market {
                 let mut outcome_token = token;
 
                 let payee = env::signer_account_id();
-                let price = outcome_token.get_price();
-                let mut exchange_rate = amount / price;
+                let weight = self.get_cumulative_weight(amount);
+                let amount_payable = self.ct_balance() * weight;
 
-                if self.is_resolved() {
-                    exchange_rate = exchange_rate + (amount / (1.0 - price));
-                }
-
-                let net_amount = exchange_rate;
+                // if self.is_resolved() {
+                //     exchange_rate = exchange_rate + (amount / price);
+                // }
 
                 log!(
-                    "SELL outcome_id: {}, account_id: {}, ot_balance: {}, amount: {}, exchange_rate: {}, supply: {}, is_resolved: {}, price: {}, net_amount: {}",
+                    "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, amount_payable: {}, weight: {}",
+                    amount,
                     outcome_id,
                     payee,
                     outcome_token.get_balance(&payee),
-                    amount,
-                    exchange_rate,
                     outcome_token.total_supply(),
                     self.is_resolved(),
-                    outcome_token.get_price(),
-                    net_amount,
+                    amount_payable,
+                    weight,
                 );
-
-                outcome_token.burn(&payee, amount);
 
                 Promise::new(self.collateral_token_account_id.clone()).function_call(
                     "ft_transfer".to_string(),
-                    json!({ "amount": net_amount, "receiver_id": payee })
+                    json!({ "amount": amount_payable.to_string(), "receiver_id": payee })
                         .to_string()
                         .into_bytes(),
                     FT_TRANSFER_BOND,
@@ -214,13 +212,16 @@ impl Market {
 
                 // @TODO create ft_transfer callback to verify that CT funds went through
 
+                outcome_token.burn(&payee, amount);
+
+                self.update_ct_balance(-amount_payable);
                 self.update_outcome_token(&outcome_token);
 
                 if !self.is_over() {
                     self.update_prices(outcome_id, SetPriceOptions::Decrease);
                 }
 
-                return net_amount;
+                return amount_payable;
             }
             None => 0.0,
         }
@@ -369,5 +370,28 @@ impl Market {
                 None => {}
             }
         }
+    }
+
+    fn get_cumulative_weight(&mut self, amount: WrappedBalance) -> WrappedBalance {
+        let mut supply = 0.0;
+
+        for id in 0..self.market.options.len() {
+            self.assert_is_valid_outcome(id as OutcomeId);
+
+            match self.outcome_tokens.get(&(id as OutcomeId)) {
+                Some(token) => {
+                    let outcome_token = token;
+                    supply += outcome_token.total_supply();
+                }
+                None => {}
+            }
+        }
+
+        amount / supply
+    }
+
+    fn update_ct_balance(&mut self, amount: WrappedBalance) -> WrappedBalance {
+        self.ct_balance += amount;
+        self.ct_balance
     }
 }

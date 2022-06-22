@@ -20,7 +20,7 @@ impl Market {
 
         log!(
             "GET_PRICE_RATIO accounts_length: {}, price_ratio: {}\n",
-            accounts_length,
+            accounts_length - 1,
             price_ratio
         );
 
@@ -28,14 +28,16 @@ impl Market {
     }
 
     pub fn get_balance_boost_ratio(&self) -> WrappedBalance {
+        let boost = self.get_block_timestamp() as f32 / self.market.ends_at as f32;
+
         log!(
-            "GET_BALANCE_BOOST_RATIO from_timestamp: {}, block_timestamp: {}",
-            self.market.ends_at,
-            self.get_block_timestamp()
+            "GET_BALANCE_BOOST_RATIO from_timestamp: {}, block_timestamp: {}, boost: {}",
+            self.market.ends_at as f32,
+            self.get_block_timestamp(),
+            boost,
         );
 
-        1.0 + (self.market.ends_at - self.get_block_timestamp()) as WrappedBalance
-            / 1000000000000000.0
+        1.0 + boost as WrappedBalance
     }
 
     pub fn get_outcome_token(&self, outcome_id: OutcomeId) -> OutcomeToken {
@@ -100,5 +102,9 @@ impl Market {
 
     pub fn balance_of(&self, outcome_id: OutcomeId, account_id: AccountId) -> WrappedBalance {
         self.get_outcome_token(outcome_id).get_balance(&account_id)
+    }
+
+    pub fn ct_balance(&self) -> WrappedBalance {
+        self.ct_balance
     }
 }

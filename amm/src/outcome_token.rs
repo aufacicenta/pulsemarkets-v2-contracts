@@ -113,9 +113,7 @@ impl OutcomeToken {
     }
 
     /**
-     * @notice returns account's balance
-     * @param account_id is the account_id to return the balance of
-     * @returns `accoun_id`s balance
+     * @notice token price
      */
     pub fn get_price(&self) -> Price {
         self.price
