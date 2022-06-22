@@ -182,23 +182,25 @@ impl Market {
                 let mut outcome_token = token;
 
                 let payee = env::signer_account_id();
-                let weight = self.get_cumulative_weight(amount);
-                let amount_payable = self.ct_balance() * weight;
+                let mut weight = self.get_cumulative_weight(amount);
+                let mut amount_payable = self.get_ct_balance() * weight;
 
-                // if self.is_resolved() {
-                //     exchange_rate = exchange_rate + (amount / price);
-                // }
+                if self.is_resolved() {
+                    weight = amount / outcome_token.total_supply();
+                    amount_payable = self.get_ct_balance() * weight;
+                }
 
                 log!(
-                    "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, amount_payable: {}, weight: {}",
+                    "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",
                     amount,
                     outcome_id,
                     payee,
                     outcome_token.get_balance(&payee),
                     outcome_token.total_supply(),
                     self.is_resolved(),
-                    amount_payable,
+                    self.get_ct_balance(),
                     weight,
+                    amount_payable,
                 );
 
                 Promise::new(self.collateral_token_account_id.clone()).function_call(
@@ -210,7 +212,7 @@ impl Market {
                     GAS_FT_TRANSFER,
                 );
 
-                // @TODO create ft_transfer callback to verify that CT funds went through
+                // @TODO create ft_transfer callback to verify that CT funds went through, then:
 
                 outcome_token.burn(&payee, amount);
 
@@ -365,6 +367,7 @@ impl Market {
 
                     if outcome_token.outcome_id != outcome_id {
                         outcome_token.burn_all();
+                        self.update_outcome_token(&outcome_token);
                     }
                 }
                 None => {}

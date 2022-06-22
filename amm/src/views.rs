@@ -104,7 +104,7 @@ impl Market {
         self.get_outcome_token(outcome_id).get_balance(&account_id)
     }
 
-    pub fn ct_balance(&self) -> WrappedBalance {
+    pub fn get_ct_balance(&self) -> WrappedBalance {
         self.ct_balance
     }
 }
