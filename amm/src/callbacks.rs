@@ -21,7 +21,7 @@ impl Market {
                 outcome_token.burn(&payee, amount);
 
                 self.update_ct_balance(-amount_payable);
-                self.update_outcome_token(&outcome_token);
+                self.outcome_tokens.insert(&outcome_id, &outcome_token);
 
                 if !self.is_over() {
                     self.update_prices(outcome_id, SetPriceOptions::Decrease);

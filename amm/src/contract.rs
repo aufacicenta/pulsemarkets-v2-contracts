@@ -135,7 +135,9 @@ impl Market {
         outcome_token.mint(&sender_id, amount_mintable);
         self.update_ct_balance(amount);
 
-        self.update_outcome_token(&outcome_token);
+        self.outcome_tokens
+            .insert(&payload.outcome_id, &outcome_token);
+
         self.update_prices(payload.outcome_id, SetPriceOptions::Increase);
 
         return amount_mintable;
@@ -205,14 +207,15 @@ impl Market {
                 GAS_FT_TRANSFER,
             );
 
-        let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
-                    "on_ft_transfer_callback".to_string(),
-                    json!({"amount": amount, "payee": payee, "outcome_id": outcome_id, "amount_payable": amount_payable})
-                        .to_string()
-                        .into_bytes(),
-                    0,
-                    GAS_FT_TRANSFER_CALLBACK,
-                );
+        let ft_transfer_callback_promise = Promise::new(env::current_account_id())
+            .function_call(
+                "on_ft_transfer_callback".to_string(),
+                json!({"amount": amount, "payee": payee, "outcome_id": outcome_id, "amount_payable": amount_payable})
+                    .to_string()
+                    .into_bytes(),
+                0,
+                GAS_FT_TRANSFER_CALLBACK,
+            );
 
         ft_transfer_promise.then(ft_transfer_callback_promise);
 
@@ -280,7 +283,8 @@ impl Market {
                 }
             }
 
-            self.update_outcome_token(&outcome_token);
+            self.outcome_tokens
+                .insert(&(id as OutcomeId), &outcome_token);
 
             k += outcome_token.get_price();
         }
@@ -292,12 +296,6 @@ impl Market {
     pub fn update_ct_balance(&mut self, amount: WrappedBalance) -> WrappedBalance {
         self.ct_balance += amount;
         self.ct_balance
-    }
-
-    #[private]
-    pub fn update_outcome_token(&mut self, outcome_token: &OutcomeToken) {
-        self.outcome_tokens
-            .insert(&outcome_token.outcome_id, outcome_token);
     }
 }
 
@@ -353,7 +351,8 @@ impl Market {
             let mut outcome_token = self.get_outcome_token(id as OutcomeId);
             if outcome_token.outcome_id != outcome_id {
                 outcome_token.burn_all();
-                self.update_outcome_token(&outcome_token);
+                self.outcome_tokens
+                    .insert(&(id as OutcomeId), &outcome_token);
             }
         }
     }
