@@ -47,7 +47,7 @@ pub struct Market {
     pub resolution_window: Timestamp,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub enum SetPriceOptions {
     Increase,
     Decrease,

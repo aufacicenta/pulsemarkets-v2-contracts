@@ -111,41 +111,34 @@ impl Market {
         self.assert_is_not_over();
         self.assert_is_not_resolved();
 
-        match self.outcome_tokens.get(&payload.outcome_id) {
-            Some(token) => {
-                let mut outcome_token = token;
+        let mut outcome_token = self.get_outcome_token(payload.outcome_id);
 
-                let price = outcome_token.get_price();
-                let fee = amount * self.get_fee_ratio();
-                let exchange_rate = (amount - fee) * (1.0 - price);
-                let balance_boost = self.get_balance_boost_ratio();
-                let amount_mintable = exchange_rate * balance_boost;
+        let price = outcome_token.get_price();
+        let fee = amount * self.get_fee_ratio();
+        let exchange_rate = (amount - fee) * (1.0 - price);
+        let balance_boost = self.get_balance_boost_ratio();
+        let amount_mintable = exchange_rate * balance_boost;
 
-                // @TODO distribute fee. Only when market is resolved?
+        log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, balance_boost: {}, amount_mintable: {}",
+            amount,
+            self.get_fee_ratio(),
+            fee,
+            outcome_token.outcome_id,
+            sender_id,
+            outcome_token.total_supply(),
+            price,
+            exchange_rate,
+            balance_boost,
+            amount_mintable,
+        );
 
-                log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, balance_boost: {}, amount_mintable: {}",
-                    amount,
-                    self.get_fee_ratio(),
-                    fee,
-                    outcome_token.outcome_id,
-                    sender_id,
-                    outcome_token.total_supply(),
-                    price,
-                    exchange_rate,
-                    balance_boost,
-                    amount_mintable,
-                );
+        outcome_token.mint(&sender_id, amount_mintable);
+        self.update_ct_balance(amount);
 
-                outcome_token.mint(&sender_id, amount_mintable);
-                self.update_ct_balance(amount);
+        self.update_outcome_token(&outcome_token);
+        self.update_prices(payload.outcome_id, SetPriceOptions::Increase);
 
-                self.update_outcome_token(&outcome_token);
-                self.update_prices(payload.outcome_id, SetPriceOptions::Increase);
-
-                return amount_mintable;
-            }
-            None => 0.0,
-        }
+        return amount_mintable;
     }
 
     /**
@@ -177,44 +170,42 @@ impl Market {
             self.assert_is_not_under_resolution();
         }
 
-        match self.outcome_tokens.get(&outcome_id) {
-            Some(token) => {
-                let outcome_token = token;
+        let outcome_token = self.get_outcome_token(outcome_id);
 
-                let payee = env::signer_account_id();
-                let mut weight = self.get_cumulative_weight(amount);
-                let mut amount_payable = self.get_ct_balance() * weight;
+        let payee = env::signer_account_id();
+        let mut weight = self.get_cumulative_weight(amount);
+        let mut amount_payable = self.get_ct_balance() * weight;
 
-                if self.is_resolved() {
-                    weight = amount / outcome_token.total_supply();
-                    amount_payable = self.get_ct_balance() * weight;
-                }
+        if self.is_resolved() {
+            weight = amount / outcome_token.total_supply();
+            amount_payable = self.get_ct_balance() * weight;
+        }
 
-                log!(
-                    "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",
-                    amount,
-                    outcome_id,
-                    payee,
-                    outcome_token.get_balance(&payee),
-                    outcome_token.total_supply(),
-                    self.is_resolved(),
-                    self.get_ct_balance(),
-                    weight,
-                    amount_payable,
-                );
+        log!(
+            "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",
+            amount,
+            outcome_id,
+            payee,
+            outcome_token.get_balance(&payee),
+            outcome_token.total_supply(),
+            self.is_resolved(),
+            self.get_ct_balance(),
+            weight,
+            amount_payable,
+        );
 
-                let ft_transfer_promise = Promise::new(self.collateral_token_account_id.clone())
-                    .function_call(
-                        "ft_transfer".to_string(),
-                        // @TODO amount_payable should not be float, but set to CT precision decimals
-                        json!({ "amount": amount_payable.to_string(), "receiver_id": payee })
-                            .to_string()
-                            .into_bytes(),
-                        FT_TRANSFER_BOND,
-                        GAS_FT_TRANSFER,
-                    );
+        let ft_transfer_promise = Promise::new(self.collateral_token_account_id.clone())
+            .function_call(
+                "ft_transfer".to_string(),
+                // @TODO amount_payable should not be float, but set to CT precision decimals
+                json!({ "amount": amount_payable.to_string(), "receiver_id": payee })
+                    .to_string()
+                    .into_bytes(),
+                FT_TRANSFER_BOND,
+                GAS_FT_TRANSFER,
+            );
 
-                let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
+        let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
                     "on_ft_transfer_callback".to_string(),
                     json!({"amount": amount, "payee": payee, "outcome_id": outcome_id, "amount_payable": amount_payable})
                         .to_string()
@@ -223,12 +214,9 @@ impl Market {
                     GAS_FT_TRANSFER_CALLBACK,
                 );
 
-                ft_transfer_promise.then(ft_transfer_callback_promise);
+        ft_transfer_promise.then(ft_transfer_callback_promise);
 
-                return amount_payable;
-            }
-            None => 0.0,
-        }
+        return amount_payable;
     }
 
     /**
@@ -269,39 +257,32 @@ impl Market {
         let mut k: Price = 0.0;
 
         for id in 0..self.market.options.len() {
-            self.assert_is_valid_outcome(id as OutcomeId);
+            let mut outcome_token = self.get_outcome_token(id as OutcomeId);
 
-            match self.outcome_tokens.get(&(id as OutcomeId)) {
-                Some(token) => {
-                    let mut outcome_token = token;
-
-                    // @TODO self.price_ratio may be updated so that it doesn't reach 1
-                    if outcome_token.outcome_id == outcome_id {
-                        match set_price_option {
-                            SetPriceOptions::Increase => {
-                                outcome_token.increase_price(price_ratio);
-                            }
-                            SetPriceOptions::Decrease => {
-                                outcome_token.decrease_price(price_ratio);
-                            }
-                        }
-                    } else {
-                        match set_price_option {
-                            SetPriceOptions::Increase => {
-                                outcome_token.decrease_price(price_ratio);
-                            }
-                            SetPriceOptions::Decrease => {
-                                outcome_token.increase_price(price_ratio);
-                            }
-                        }
+            // @TODO self.price_ratio may be updated so that it doesn't reach 1
+            if outcome_token.outcome_id == outcome_id {
+                match set_price_option {
+                    SetPriceOptions::Increase => {
+                        outcome_token.increase_price(price_ratio);
                     }
-
-                    self.update_outcome_token(&outcome_token);
-
-                    k += outcome_token.get_price();
+                    SetPriceOptions::Decrease => {
+                        outcome_token.decrease_price(price_ratio);
+                    }
                 }
-                None => {}
+            } else {
+                match set_price_option {
+                    SetPriceOptions::Increase => {
+                        outcome_token.decrease_price(price_ratio);
+                    }
+                    SetPriceOptions::Decrease => {
+                        outcome_token.increase_price(price_ratio);
+                    }
+                }
             }
+
+            self.update_outcome_token(&outcome_token);
+
+            k += outcome_token.get_price();
         }
 
         assert_eq!(k, 1.0, "ERR_PRICE_CONSTANT_SHOULD_EQ_1");
@@ -369,18 +350,10 @@ impl Market {
 
     fn burn_the_losers(&mut self, outcome_id: OutcomeId) {
         for id in 0..self.market.options.len() {
-            self.assert_is_valid_outcome(id as OutcomeId);
-
-            match self.outcome_tokens.get(&(id as OutcomeId)) {
-                Some(token) => {
-                    let mut outcome_token = token;
-
-                    if outcome_token.outcome_id != outcome_id {
-                        outcome_token.burn_all();
-                        self.update_outcome_token(&outcome_token);
-                    }
-                }
-                None => {}
+            let mut outcome_token = self.get_outcome_token(id as OutcomeId);
+            if outcome_token.outcome_id != outcome_id {
+                outcome_token.burn_all();
+                self.update_outcome_token(&outcome_token);
             }
         }
     }
@@ -389,15 +362,8 @@ impl Market {
         let mut supply = 0.0;
 
         for id in 0..self.market.options.len() {
-            self.assert_is_valid_outcome(id as OutcomeId);
-
-            match self.outcome_tokens.get(&(id as OutcomeId)) {
-                Some(token) => {
-                    let outcome_token = token;
-                    supply += outcome_token.total_supply();
-                }
-                None => {}
-            }
+            let outcome_token = self.get_outcome_token(id as OutcomeId);
+            supply += outcome_token.total_supply();
         }
 
         amount / supply

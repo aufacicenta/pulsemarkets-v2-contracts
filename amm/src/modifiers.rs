@@ -32,7 +32,6 @@ impl Market {
         let mut k: Price = 0.0;
 
         for id in 0..self.market.options.len() {
-            self.assert_is_valid_outcome(id as OutcomeId);
             k += self.get_outcome_token(id as OutcomeId).get_price();
         }
 
@@ -76,9 +75,6 @@ impl Market {
     }
 
     pub fn assert_is_valid_outcome(&self, outcome_id: OutcomeId) {
-        match self.outcome_tokens.get(&outcome_id) {
-            Some(_) => {}
-            None => env::panic_str("ERR_INVALID_OUTCOME_ID"),
-        }
+        self.get_outcome_token(outcome_id);
     }
 }
