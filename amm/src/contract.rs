@@ -40,9 +40,12 @@ impl Market {
 
         Self {
             market,
+            collateral_token: CollateralToken {
+                id: collateral_token_account_id,
+                balance: 0.0,
+                decimals: None,
+            },
             dao_account_id,
-            collateral_token_account_id,
-            ct_balance: 0.0,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
             fee_ratio,
             resolution_window,
@@ -196,16 +199,15 @@ impl Market {
             amount_payable,
         );
 
-        let ft_transfer_promise = Promise::new(self.collateral_token_account_id.clone())
-            .function_call(
-                "ft_transfer".to_string(),
-                // @TODO amount_payable should not be float, but set to CT precision decimals
-                json!({ "amount": amount_payable.to_string(), "receiver_id": payee })
-                    .to_string()
-                    .into_bytes(),
-                FT_TRANSFER_BOND,
-                GAS_FT_TRANSFER,
-            );
+        let ft_transfer_promise = Promise::new(self.collateral_token.id.clone()).function_call(
+            "ft_transfer".to_string(),
+            // @TODO amount_payable should not be float, but set to CT precision decimals
+            json!({ "amount": amount_payable.to_string(), "receiver_id": payee })
+                .to_string()
+                .into_bytes(),
+            FT_TRANSFER_BOND,
+            GAS_FT_TRANSFER,
+        );
 
         let ft_transfer_callback_promise = Promise::new(env::current_account_id())
             .function_call(
@@ -294,8 +296,8 @@ impl Market {
 
     #[private]
     pub fn update_ct_balance(&mut self, amount: WrappedBalance) -> WrappedBalance {
-        self.ct_balance += amount;
-        self.ct_balance
+        self.collateral_token.balance += amount;
+        self.collateral_token.balance
     }
 }
 

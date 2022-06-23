@@ -56,7 +56,7 @@ impl Market {
     }
 
     pub fn collateral_token_account_id(&self) -> AccountId {
-        self.collateral_token_account_id.clone()
+        self.collateral_token.id.clone()
     }
 
     pub fn published_at(&self) -> Timestamp {
@@ -105,6 +105,6 @@ impl Market {
     }
 
     pub fn get_ct_balance(&self) -> WrappedBalance {
-        self.ct_balance
+        self.collateral_token.balance
     }
 }

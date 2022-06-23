@@ -32,9 +32,8 @@ pub struct MarketData {
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Market {
     pub market: MarketData,
+    pub collateral_token: CollateralToken,
     pub dao_account_id: AccountId,
-    pub collateral_token_account_id: AccountId,
-    pub ct_balance: WrappedBalance,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
     // Decimal fee to charge upon a bet
@@ -68,6 +67,13 @@ pub struct OutcomeToken {
     pub price: WrappedBalance,
 }
 
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+pub struct CollateralToken {
+    pub id: AccountId,
+    pub balance: WrappedBalance,
+    pub decimals: Option<u8>,
+}
+
 #[derive(BorshStorageKey, BorshSerialize)]
 pub enum StorageKeys {
     OutcomeTokens,
@@ -77,8 +83,6 @@ pub enum StorageKeys {
 pub struct BuyArgs {
     // id of the outcome that shares are to be purchased from
     pub outcome_id: OutcomeId,
-    // the minimum amount of share tokens the user expects out, this is to prevent slippage
-    // pub min_shares_out: WrappedBalance,
 }
 
 #[derive(Serialize, Deserialize)]
