@@ -312,8 +312,7 @@ impl Market {
             "add_proposal".to_string(),
             json!({
                 "proposal": {
-                    "description": format!("{}:\n{}\nR: {}$$$$$$$$ProposeCustomFunctionCall",
-                        receiver_id,
+                    "description": format!("{}\nOutcome: {}$$$$$$$$ProposeCustomFunctionCall",
                         self.market.description,
                         outcome),
                     "kind": {
