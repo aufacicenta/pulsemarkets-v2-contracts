@@ -179,7 +179,7 @@ impl Market {
 
         match self.outcome_tokens.get(&outcome_id) {
             Some(token) => {
-                let mut outcome_token = token;
+                let outcome_token = token;
 
                 let payee = env::signer_account_id();
                 let mut weight = self.get_cumulative_weight(amount);
@@ -203,25 +203,27 @@ impl Market {
                     amount_payable,
                 );
 
-                Promise::new(self.collateral_token_account_id.clone()).function_call(
-                    "ft_transfer".to_string(),
-                    json!({ "amount": amount_payable.to_string(), "receiver_id": payee })
+                let ft_transfer_promise = Promise::new(self.collateral_token_account_id.clone())
+                    .function_call(
+                        "ft_transfer".to_string(),
+                        // @TODO amount_payable should not be float, but set to CT precision decimals
+                        json!({ "amount": amount_payable.to_string(), "receiver_id": payee })
+                            .to_string()
+                            .into_bytes(),
+                        FT_TRANSFER_BOND,
+                        GAS_FT_TRANSFER,
+                    );
+
+                let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
+                    "on_ft_transfer_callback".to_string(),
+                    json!({"amount": amount, "payee": payee, "outcome_id": outcome_id, "amount_payable": amount_payable})
                         .to_string()
                         .into_bytes(),
-                    FT_TRANSFER_BOND,
-                    GAS_FT_TRANSFER,
+                    0,
+                    GAS_FT_TRANSFER_CALLBACK,
                 );
 
-                // @TODO create ft_transfer callback to verify that CT funds went through, then:
-
-                outcome_token.burn(&payee, amount);
-
-                self.update_ct_balance(-amount_payable);
-                self.update_outcome_token(&outcome_token);
-
-                if !self.is_over() {
-                    self.update_prices(outcome_id, SetPriceOptions::Decrease);
-                }
+                ft_transfer_promise.then(ft_transfer_callback_promise);
 
                 return amount_payable;
             }
@@ -259,6 +261,62 @@ impl Market {
         self.burn_the_losers(outcome_id);
 
         self.resolved_at = Some(self.get_block_timestamp());
+    }
+
+    #[private]
+    pub fn update_prices(&mut self, outcome_id: OutcomeId, set_price_option: SetPriceOptions) {
+        let price_ratio = self.get_price_ratio(outcome_id);
+        let mut k: Price = 0.0;
+
+        for id in 0..self.market.options.len() {
+            self.assert_is_valid_outcome(id as OutcomeId);
+
+            match self.outcome_tokens.get(&(id as OutcomeId)) {
+                Some(token) => {
+                    let mut outcome_token = token;
+
+                    // @TODO self.price_ratio may be updated so that it doesn't reach 1
+                    if outcome_token.outcome_id == outcome_id {
+                        match set_price_option {
+                            SetPriceOptions::Increase => {
+                                outcome_token.increase_price(price_ratio);
+                            }
+                            SetPriceOptions::Decrease => {
+                                outcome_token.decrease_price(price_ratio);
+                            }
+                        }
+                    } else {
+                        match set_price_option {
+                            SetPriceOptions::Increase => {
+                                outcome_token.decrease_price(price_ratio);
+                            }
+                            SetPriceOptions::Decrease => {
+                                outcome_token.increase_price(price_ratio);
+                            }
+                        }
+                    }
+
+                    self.update_outcome_token(&outcome_token);
+
+                    k += outcome_token.get_price();
+                }
+                None => {}
+            }
+        }
+
+        assert_eq!(k, 1.0, "ERR_PRICE_CONSTANT_SHOULD_EQ_1");
+    }
+
+    #[private]
+    pub fn update_ct_balance(&mut self, amount: WrappedBalance) -> WrappedBalance {
+        self.ct_balance += amount;
+        self.ct_balance
+    }
+
+    #[private]
+    pub fn update_outcome_token(&mut self, outcome_token: &OutcomeToken) {
+        self.outcome_tokens
+            .insert(&outcome_token.outcome_id, outcome_token);
     }
 }
 
@@ -309,54 +367,6 @@ impl Market {
         1 as Price / self.market.options.len() as Price
     }
 
-    fn update_prices(&mut self, outcome_id: OutcomeId, set_price_option: SetPriceOptions) {
-        let price_ratio = self.get_price_ratio(outcome_id);
-        let mut k: Price = 0.0;
-
-        for id in 0..self.market.options.len() {
-            self.assert_is_valid_outcome(id as OutcomeId);
-
-            match self.outcome_tokens.get(&(id as OutcomeId)) {
-                Some(token) => {
-                    let mut outcome_token = token;
-
-                    // @TODO self.price_ratio may be updated so that it doesn't reach 1
-                    if outcome_token.outcome_id == outcome_id {
-                        match set_price_option {
-                            SetPriceOptions::Increase => {
-                                outcome_token.increase_price(price_ratio);
-                            }
-                            SetPriceOptions::Decrease => {
-                                outcome_token.decrease_price(price_ratio);
-                            }
-                        }
-                    } else {
-                        match set_price_option {
-                            SetPriceOptions::Increase => {
-                                outcome_token.decrease_price(price_ratio);
-                            }
-                            SetPriceOptions::Decrease => {
-                                outcome_token.increase_price(price_ratio);
-                            }
-                        }
-                    }
-
-                    self.update_outcome_token(&outcome_token);
-
-                    k += outcome_token.get_price();
-                }
-                None => {}
-            }
-        }
-
-        assert_eq!(k, 1.0, "ERR_PRICE_CONSTANT_SHOULD_EQ_1");
-    }
-
-    fn update_outcome_token(&mut self, outcome_token: &OutcomeToken) {
-        self.outcome_tokens
-            .insert(&outcome_token.outcome_id, outcome_token);
-    }
-
     fn burn_the_losers(&mut self, outcome_id: OutcomeId) {
         for id in 0..self.market.options.len() {
             self.assert_is_valid_outcome(id as OutcomeId);
@@ -391,10 +401,5 @@ impl Market {
         }
 
         amount / supply
-    }
-
-    fn update_ct_balance(&mut self, amount: WrappedBalance) -> WrappedBalance {
-        self.ct_balance += amount;
-        self.ct_balance
     }
 }
