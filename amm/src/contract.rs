@@ -201,22 +201,28 @@ impl Market {
         let ft_transfer_promise = Promise::new(self.collateral_token.id.clone()).function_call(
             "ft_transfer".to_string(),
             // @TODO amount_payable should not be float, but set to CT precision decimals
-            json!({ "amount": amount_payable.floor().to_string(), "receiver_id": payee })
-                .to_string()
-                .into_bytes(),
+            json!({
+                "amount": amount_payable.floor().to_string(),
+                "receiver_id": payee })
+            .to_string()
+            .into_bytes(),
             FT_TRANSFER_BOND,
             GAS_FT_TRANSFER,
         );
 
-        let ft_transfer_callback_promise = Promise::new(env::current_account_id())
-            .function_call(
-                "on_ft_transfer_callback".to_string(),
-                json!({"amount": amount, "payee": payee, "outcome_id": outcome_id, "amount_payable": amount_payable})
-                    .to_string()
-                    .into_bytes(),
-                0,
-                GAS_FT_TRANSFER_CALLBACK,
-            );
+        let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
+            "on_ft_transfer_callback".to_string(),
+            json!({
+                "amount": amount,
+                "payee": payee,
+                "outcome_id": outcome_id,
+                "amount_payable": amount_payable.floor().to_string()
+            })
+            .to_string()
+            .into_bytes(),
+            0,
+            GAS_FT_TRANSFER_CALLBACK,
+        );
 
         ft_transfer_promise.then(ft_transfer_callback_promise);
 
