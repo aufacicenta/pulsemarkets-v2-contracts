@@ -2,6 +2,7 @@
 mod tests {
     use crate::storage::*;
     use chrono::{Duration, Utc};
+    use near_sdk::serde_json::json;
     use near_sdk::test_utils::test_env::{alice, bob, carol};
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::{testing_env, AccountId, Balance, PromiseResult};
@@ -98,6 +99,28 @@ mod tests {
         *collateral_token_balance -= balance * c.get_fee_ratio();
     }
 
+    fn publish(c: &mut Market, context: &VMContextBuilder) {
+        testing_env!(
+            context.build(),
+            near_sdk::VMConfig::test(),
+            near_sdk::RuntimeFeesConfig::test(),
+            Default::default(),
+            vec![PromiseResult::Successful(
+                json!({
+                    "spec": "1.0.0".to_string(),
+                    "name": "usdt.fakes.testnet".to_string(),
+                    "symbol": "USDT".to_string(),
+                    "decimals": 6,
+                })
+                .to_string()
+                .into_bytes()
+            )],
+        );
+
+        c.publish();
+        c.on_ft_metadata_callback();
+    }
+
     fn create_market_data(
         description: String,
         options: u8,
@@ -121,6 +144,8 @@ mod tests {
 
     #[test]
     fn test_publish_binary_market() {
+        let context = setup_context();
+
         let starts_at = add_expires_at_nanos(100);
         let ends_at = add_expires_at_nanos(1000);
         let resolution_window = 3000;
@@ -130,7 +155,7 @@ mod tests {
 
         let mut contract: Market = setup_contract(market_data, resolution_window);
 
-        contract.publish();
+        publish(&mut contract, &context);
 
         let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
@@ -142,7 +167,39 @@ mod tests {
     }
 
     #[test]
+    fn test_collateral_token_precision() {
+        let context = setup_context();
+
+        let now = Utc::now();
+        let starts_at = now + Duration::days(5);
+        let ends_at = starts_at + Duration::days(10);
+        let resolution_window = ends_at + Duration::days(3);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
+
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+        );
+
+        publish(&mut contract, &context);
+
+        assert_eq!(contract.get_precision(), "10000000");
+        assert_eq!(
+            contract.get_collateral_token_metadata().decimals.unwrap(),
+            6
+        );
+    }
+
+    #[test]
     fn test_publish_market_with_3_outcomes() {
+        let context = setup_context();
+
         let starts_at = add_expires_at_nanos(100);
         let ends_at = add_expires_at_nanos(1000);
         let resolution_window = 3000;
@@ -152,7 +209,7 @@ mod tests {
 
         let mut contract: Market = setup_contract(market_data, resolution_window);
 
-        contract.publish();
+        publish(&mut contract, &context);
 
         let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
@@ -187,7 +244,7 @@ mod tests {
         let mut contract: Market = setup_contract(market_data, resolution_window);
 
         // @TODO publish may also be made by a CT ft_on_transfer
-        contract.publish();
+        publish(&mut contract, &context);
 
         testing_env!(context
             .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.25)) as u64)
@@ -223,7 +280,7 @@ mod tests {
         assert_eq!(alice_balance, 0.0);
 
         assert_eq!(outcome_token_yes.total_supply(), 0.0);
-        assert_eq!(contract.get_ct_balance(), 0.0);
+        assert_eq!(contract.get_collateral_token_metadata().balance, 0.0);
     }
 
     #[test]
@@ -247,7 +304,7 @@ mod tests {
         let mut contract: Market = setup_contract(market_data, resolution_window);
 
         // @TODO publish may also be made by a CT ft_on_transfer
-        contract.publish();
+        publish(&mut contract, &context);
 
         // boost the balance
         testing_env!(context
@@ -307,7 +364,7 @@ mod tests {
         assert_eq!(bob_balance, 0.0);
         assert_eq!(outcome_token_no.total_supply(), 0.0);
 
-        assert_eq!(contract.get_ct_balance(), 0.0);
+        assert_eq!(contract.get_collateral_token_metadata().balance, 0.0);
     }
 
     #[test]
@@ -319,7 +376,6 @@ mod tests {
         let yes = 0;
         let no = 1;
 
-        // let now = add_expires_at_nanos(0);
         let now = Utc::now();
         testing_env!(context
             .block_timestamp(now.timestamp_nanos().try_into().unwrap())
@@ -341,7 +397,7 @@ mod tests {
         );
 
         // @TODO publish may also be made by a CT ft_on_transfer
-        contract.publish();
+        publish(&mut contract, &context);
 
         testing_env!(context
             .block_timestamp(
@@ -428,7 +484,7 @@ mod tests {
             yes,
         );
 
-        assert_eq!(contract.get_ct_balance(), 1300.0);
+        assert_eq!(contract.get_collateral_token_metadata().balance, 1300.0);
 
         // alice sells all her OT balance while the event is ongoing
         let alice_balance = contract.balance_of(yes, alice());
@@ -484,7 +540,7 @@ mod tests {
         assert_eq!(outcome_token_yes.total_supply() > 0.0, true);
         assert_eq!(outcome_token_yes.total_supply() < 1.0, true);
 
-        assert_eq!(contract.get_ct_balance() > 0.0, true);
-        assert_eq!(contract.get_ct_balance() < 1.0, true);
+        assert_eq!(contract.get_collateral_token_metadata().balance > 0.0, true);
+        assert_eq!(contract.get_collateral_token_metadata().balance < 1.0, true);
     }
 }

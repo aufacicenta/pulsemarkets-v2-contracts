@@ -51,12 +51,12 @@ impl Market {
         env::block_timestamp().try_into().unwrap()
     }
 
-    pub fn dao_account_id(&self) -> AccountId {
-        self.dao_account_id.clone()
+    pub fn get_collateral_token_metadata(&self) -> CollateralToken {
+        self.collateral_token.clone()
     }
 
-    pub fn collateral_token_account_id(&self) -> AccountId {
-        self.collateral_token.id.clone()
+    pub fn dao_account_id(&self) -> AccountId {
+        self.dao_account_id.clone()
     }
 
     pub fn published_at(&self) -> Timestamp {
@@ -104,7 +104,13 @@ impl Market {
         self.get_outcome_token(outcome_id).get_balance(&account_id)
     }
 
-    pub fn get_ct_balance(&self) -> WrappedBalance {
-        self.collateral_token.balance
+    pub fn get_precision(&self) -> String {
+        let precision = format!(
+            "{:0<p$}",
+            10,
+            p = self.collateral_token.decimals.unwrap() as usize + 2
+        );
+
+        precision
     }
 }

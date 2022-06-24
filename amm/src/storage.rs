@@ -67,7 +67,7 @@ pub struct OutcomeToken {
     pub price: WrappedBalance,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
 pub struct CollateralToken {
     pub id: AccountId,
     pub balance: WrappedBalance,

@@ -1,3 +1,4 @@
+use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
 use near_sdk::{env, log, near_bindgen, AccountId, PromiseResult};
 
 use crate::storage::*;
@@ -30,6 +31,23 @@ impl Market {
                 return res.to_string();
             }
             _ => env::panic_str("ERR_ON_FT_TRANSFER_CALLBACK"),
+        }
+    }
+
+    #[private]
+    pub fn on_ft_metadata_callback(&mut self) -> u8 {
+        match env::promise_result(0) {
+            PromiseResult::Successful(result) => {
+                let res: FungibleTokenMetadata =
+                    near_sdk::serde_json::from_slice::<FungibleTokenMetadata>(&result).unwrap();
+
+                log!("on_ft_metadata_callback: {}", res.decimals);
+
+                self.collateral_token.decimals = Some(res.decimals);
+
+                return res.decimals;
+            }
+            _ => env::panic_str("ERR_ON_FT_METADATA_CALLBACK"),
         }
     }
 

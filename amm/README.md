@@ -86,6 +86,9 @@ near deploy --wasmFile target/wasm32-unknown-unknown/release/amm.wasm --accountI
 <!-- Publish the outcomes -->
 near call amm-9.aufacicenta.testnet publish --accountId aufacicenta.testnet --gas=60000000000000
 
+<!-- Check that FT precision decimals has been set after publish -->
+near view amm-17.aufacicenta.testnet get_collateral_token_metadata --accountId aufacicenta.testnet
+
 <!-- Make a storage_deposit call to the NEP141 collateral -->
 near call usdt.fakes.testnet storage_deposit --accountId amm-9.aufacicenta.testnet --deposit 0.00235
 
@@ -98,4 +101,10 @@ near view amm-9.aufacicenta.testnet get_outcome_token '{"outcome_id":1}'
 
 <!-- Check NEP141 Collateral Token balance -->
 near view usdt.fakes.testnet ft_balance_of '{"account_id":"amm-10.aufacicenta.testnet"}'
+
+<!-- Check outcome token balance of account -->
+near view amm-15.aufacicenta.testnet balance_of '{"outcome_id":0,"account_id":"aufacicenta.testnet"}' --accountId aufacicenta.testnet
+
+<!-- Sell outcome tokens. Amount should be in OT balance -->
+near call amm-15.aufacicenta.testnet sell '{"outcome_id":0,"amount":180.77805}' --accountId aufacicenta.testnet
 ```
