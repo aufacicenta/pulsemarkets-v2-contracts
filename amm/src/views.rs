@@ -103,14 +103,4 @@ impl Market {
     pub fn balance_of(&self, outcome_id: OutcomeId, account_id: AccountId) -> WrappedBalance {
         self.get_outcome_token(outcome_id).get_balance(&account_id)
     }
-
-    pub fn get_precision(&self) -> String {
-        let precision = format!(
-            "{:0<p$}",
-            10,
-            p = self.collateral_token.decimals.unwrap() as usize + 2
-        );
-
-        precision
-    }
 }

@@ -71,7 +71,6 @@ pub struct OutcomeToken {
 pub struct CollateralToken {
     pub id: AccountId,
     pub balance: WrappedBalance,
-    pub decimals: Option<u8>,
 }
 
 #[derive(BorshStorageKey, BorshSerialize)]

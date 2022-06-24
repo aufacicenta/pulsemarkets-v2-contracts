@@ -43,7 +43,6 @@ impl Market {
             collateral_token: CollateralToken {
                 id: collateral_token_account_id,
                 balance: 0.0,
-                decimals: None,
             },
             dao_account_id,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
@@ -80,7 +79,6 @@ impl Market {
             outcome_id += 1;
         }
 
-        self.set_ct_decimals();
         self.assert_price_constant();
         self.published_at = Some(self.get_block_timestamp());
     }
@@ -200,12 +198,10 @@ impl Market {
             amount_payable,
         );
 
-        let precision = self.get_precision();
-
         let ft_transfer_promise = Promise::new(self.collateral_token.id.clone()).function_call(
             "ft_transfer".to_string(),
             // @TODO amount_payable should not be float, but set to CT precision decimals
-            json!({ "amount": &(amount_payable / precision.parse::<WrappedBalance>().unwrap()).to_string()[2..], "receiver_id": payee })
+            json!({ "amount": amount_payable.floor().to_string(), "receiver_id": payee })
                 .to_string()
                 .into_bytes(),
             FT_TRANSFER_BOND,
@@ -338,24 +334,6 @@ impl Market {
             BALANCE_PROPOSAL_BOND,
             GAS_CREATE_DAO_PROPOSAL,
         );
-    }
-
-    fn set_ct_decimals(&mut self) {
-        let ft_metadata_promise = Promise::new(self.collateral_token.id.clone()).function_call(
-            "ft_metadata".to_string(),
-            json!({}).to_string().into_bytes(),
-            FT_TRANSFER_BOND,
-            GAS_FT_METADATA,
-        );
-
-        let ft_metadata_callback_promise = Promise::new(env::current_account_id()).function_call(
-            "on_ft_metadata_callback".to_string(),
-            json!({}).to_string().into_bytes(),
-            0,
-            GAS_FT_METADATA_CALLBACK,
-        );
-
-        ft_metadata_promise.then(ft_metadata_callback_promise);
     }
 
     fn create_outcome_token(&mut self, outcome_id: OutcomeId) {

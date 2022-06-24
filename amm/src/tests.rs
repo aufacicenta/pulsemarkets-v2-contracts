@@ -2,7 +2,6 @@
 mod tests {
     use crate::storage::*;
     use chrono::{Duration, Utc};
-    use near_sdk::serde_json::json;
     use near_sdk::test_utils::test_env::{alice, bob, carol};
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::{testing_env, AccountId, Balance, PromiseResult};
@@ -99,26 +98,8 @@ mod tests {
         *collateral_token_balance -= balance * c.get_fee_ratio();
     }
 
-    fn publish(c: &mut Market, context: &VMContextBuilder) {
-        testing_env!(
-            context.build(),
-            near_sdk::VMConfig::test(),
-            near_sdk::RuntimeFeesConfig::test(),
-            Default::default(),
-            vec![PromiseResult::Successful(
-                json!({
-                    "spec": "1.0.0".to_string(),
-                    "name": "usdt.fakes.testnet".to_string(),
-                    "symbol": "USDT".to_string(),
-                    "decimals": 6,
-                })
-                .to_string()
-                .into_bytes()
-            )],
-        );
-
+    fn publish(c: &mut Market, _context: &VMContextBuilder) {
         c.publish();
-        c.on_ft_metadata_callback();
     }
 
     fn create_market_data(
@@ -164,36 +145,6 @@ mod tests {
         assert_eq!(outcome_token_1.total_supply(), 0.0);
         assert_eq!(outcome_token_0.get_price(), 0.5);
         assert_eq!(outcome_token_1.get_price(), 0.5);
-    }
-
-    #[test]
-    fn test_collateral_token_precision() {
-        let context = setup_context();
-
-        let now = Utc::now();
-        let starts_at = now + Duration::days(5);
-        let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-
-        let market_data: MarketData = create_market_data(
-            "a market description".to_string(),
-            2,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
-        );
-
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-        );
-
-        publish(&mut contract, &context);
-
-        assert_eq!(contract.get_precision(), "10000000");
-        assert_eq!(
-            contract.get_collateral_token_metadata().decimals.unwrap(),
-            6
-        );
     }
 
     #[test]
