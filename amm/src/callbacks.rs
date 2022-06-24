@@ -13,14 +13,8 @@ impl Market {
         amount_payable: WrappedBalance,
     ) -> String {
         match env::promise_result(0) {
-            PromiseResult::Successful(result) => {
-                let res = near_sdk::serde_json::from_slice::<WrappedBalance>(&result).unwrap();
-
-                log!(
-                    "on_ft_transfer_callback: {}, amount_payable: {}",
-                    res,
-                    amount_payable
-                );
+            PromiseResult::Successful(_result) => {
+                log!("on_ft_transfer_callback.amount_payable: {}", amount_payable);
 
                 let mut outcome_token = self.get_outcome_token(outcome_id);
                 outcome_token.burn(&payee, amount);
@@ -32,7 +26,7 @@ impl Market {
                     self.update_prices(outcome_id, SetPriceOptions::Decrease);
                 }
 
-                return res.to_string();
+                return amount_payable.to_string();
             }
             _ => env::panic_str("ERR_ON_FT_TRANSFER_CALLBACK"),
         }

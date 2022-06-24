@@ -170,6 +170,10 @@ impl Market {
     pub fn sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
         self.assert_is_published();
 
+        if amount > self.balance_of(outcome_id, env::signer_account_id()) {
+            env::panic_str("ERR_SELL_AMOUNT_GREATER_THAN_BALANCE");
+        }
+
         if !self.is_resolved() {
             self.assert_is_not_under_resolution();
         }
@@ -178,11 +182,11 @@ impl Market {
 
         let payee = env::signer_account_id();
         let mut weight = self.get_cumulative_weight(amount);
-        let mut amount_payable = self.collateral_token.balance * weight;
+        let mut amount_payable = (self.collateral_token.balance * weight).floor();
 
         if self.is_resolved() {
             weight = amount / outcome_token.total_supply();
-            amount_payable = self.collateral_token.balance * weight;
+            amount_payable = (self.collateral_token.balance * weight).floor();
         }
 
         log!(
@@ -202,7 +206,7 @@ impl Market {
             "ft_transfer".to_string(),
             // @TODO amount_payable should not be float, but set to CT precision decimals
             json!({
-                "amount": amount_payable.floor().to_string(),
+                "amount": amount_payable.to_string(),
                 "receiver_id": payee })
             .to_string()
             .into_bytes(),
@@ -216,7 +220,7 @@ impl Market {
                 "amount": amount,
                 "payee": payee,
                 "outcome_id": outcome_id,
-                "amount_payable": amount_payable.floor().to_string()
+                "amount_payable": amount_payable
             })
             .to_string()
             .into_bytes(),

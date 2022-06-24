@@ -77,34 +77,36 @@ In Pulse, not a single person can resolute a market, instead, a group of persons
 To deploy this contract using Near CLI:
 
 ```
+export NEAR_AMM_ACCOUNT_ID="amm.aufacicenta.testnet"
+
 <!-- Create the account -->
-near create-account amm-9.aufacicenta.testnet --masterAccount aufacicenta.testnet --initialBalance 10
+near create-account $NEAR_AMM_ACCOUNT_ID --masterAccount aufacicenta.testnet --initialBalance 10
 
 <!-- Deploy the contract -->
-near deploy --wasmFile target/wasm32-unknown-unknown/release/amm.wasm --accountId amm-9.aufacicenta.testnet --initFunction new --initArgs '{"market":{"description":"Mamifut vs. Cremas, Jul 1st, 2022","info":"market info","category":"sports","options":["mamifut","cremas"],"starts_at":1656698400000000000,"ends_at":1656703800000000000},"dao_account_id":"pulse-dao.sputnikv2.testnet","collateral_token_account_id":"usdt.fakes.testnet","fee_ratio":0.02,"resolution_window":259200000000000}'
+near deploy --wasmFile target/wasm32-unknown-unknown/release/amm.wasm --accountId $NEAR_AMM_ACCOUNT_ID --initFunction new --initArgs '{"market":{"description":"Mamifut vs. Cremas, Jul 1st, 2022","info":"market info","category":"sports","options":["mamifut","cremas"],"starts_at":1656698400000000000,"ends_at":1656703800000000000},"dao_account_id":"pulse-dao.sputnikv2.testnet","collateral_token_account_id":"usdt.fakes.testnet","fee_ratio":0.02,"resolution_window":259200000000000}'
 
 <!-- Publish the outcomes -->
-near call amm-9.aufacicenta.testnet publish --accountId aufacicenta.testnet --gas=60000000000000
+near call $NEAR_AMM_ACCOUNT_ID publish --accountId aufacicenta.testnet --gas=60000000000000
 
 <!-- Check that FT precision decimals has been set after publish -->
-near view amm-17.aufacicenta.testnet get_collateral_token_metadata --accountId aufacicenta.testnet
+near view $NEAR_AMM_ACCOUNT_ID get_collateral_token_metadata --accountId aufacicenta.testnet
 
 <!-- Make a storage_deposit call to the NEP141 collateral -->
-near call usdt.fakes.testnet storage_deposit --accountId amm-9.aufacicenta.testnet --deposit 0.00235
+near call usdt.fakes.testnet storage_deposit --accountId $NEAR_AMM_ACCOUNT_ID --deposit 0.00235
 
 <!-- Transfer USDT (the collateral registered on deployment) to the AMM contract to Buy an outcome -->
-near call usdt.fakes.testnet ft_transfer_call '{"receiver_id":"amm-9.aufacicenta.testnet","amount":"5000000","msg":"{\"BuyArgs\":{\"outcome_id\":0}}"}' --accountId aufacicenta.testnet --depositYocto 1 --gas=33000000000000
+near call usdt.fakes.testnet ft_transfer_call '{"receiver_id":"'"$NEAR_AMM_ACCOUNT_ID"'","amount":"200","msg":"{\"BuyArgs\":{\"outcome_id\":0}}"}' --accountId aufacicenta.testnet --depositYocto 1 --gas=33000000000000
 
 <!-- Get Outcome token (prices should have been updated) -->
-near view amm-9.aufacicenta.testnet get_outcome_token '{"outcome_id":0}'
-near view amm-9.aufacicenta.testnet get_outcome_token '{"outcome_id":1}'
+near view $NEAR_AMM_ACCOUNT_ID get_outcome_token '{"outcome_id":0}'
+near view $NEAR_AMM_ACCOUNT_ID get_outcome_token '{"outcome_id":1}'
 
 <!-- Check NEP141 Collateral Token balance -->
-near view usdt.fakes.testnet ft_balance_of '{"account_id":"amm-10.aufacicenta.testnet"}'
+near view usdt.fakes.testnet ft_balance_of '{"account_id":"'"$NEAR_AMM_ACCOUNT_ID"'"}'
 
 <!-- Check outcome token balance of account -->
-near view amm-15.aufacicenta.testnet balance_of '{"outcome_id":0,"account_id":"aufacicenta.testnet"}' --accountId aufacicenta.testnet
+near view $NEAR_AMM_ACCOUNT_ID balance_of '{"outcome_id":0,"account_id":"aufacicenta.testnet"}' --accountId aufacicenta.testnet
 
 <!-- Sell outcome tokens. Amount should be in OT balance -->
-near call amm-15.aufacicenta.testnet sell '{"outcome_id":0,"amount":180.77805}' --accountId aufacicenta.testnet
+near call $NEAR_AMM_ACCOUNT_ID sell '{"outcome_id":0,"amount":180.77805}' --accountId aufacicenta.testnet
 ```
