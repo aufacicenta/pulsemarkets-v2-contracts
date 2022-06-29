@@ -78,6 +78,13 @@ To deploy this contract using Near CLI:
 
 ```
 export NEAR_AMM_ACCOUNT_ID="amm.aufacicenta.testnet"
+export NEAR_AMM_FACTORY_ACCOUNT_ID="amm-factory.aufacicenta.testnet"
+
+<!-- Deploy AMM factory -->
+ near deploy --wasmFile target/wasm32-unknown-unknown/release/market_factory.wasm --accountId $NEAR_AMM_FACTORY_ACCOUNT_ID --initFunction new --initArgs '{}'
+
+<!-- Create a market from the AMM factory (args must be base64'd) -->
+near call $NEAR_AMM_FACTORY_ACCOUNT_ID create_market '{"args":"eyJtYXJrZXQiOnsiZGVzY3JpcHRpb24iOiJNYW1pZnV0dnMuQ3JlbWFzLEp1bDFzdCwyMDIyIiwiaW5mbyI6Im1hcmtldGluZm8iLCJjYXRlZ29yeSI6InNwb3J0cyIsIm9wdGlvbnMiOlsibWFtaWZ1dCIsImNyZW1hcyJdLCJzdGFydHNfYXQiOjE2NTY2OTg0MDAwMDAwMDAwMDAsImVuZHNfYXQiOjE2NTY3MDM4MDAwMDAwMDAwMDB9LCJkYW9fYWNjb3VudF9pZCI6InB1bHNlLWRhby5zcHV0bmlrdjIudGVzdG5ldCIsImNvbGxhdGVyYWxfdG9rZW5fYWNjb3VudF9pZCI6InVzZHQuZmFrZXMudGVzdG5ldCIsImZlZV9yYXRpbyI6MC4wMiwicmVzb2x1dGlvbl93aW5kb3ciOjI1OTIwMDAwMDAwMDAwMH0="}' --accountId aufacicenta.testnet --gas=60000000000000
 
 <!-- Create the account -->
 near create-account $NEAR_AMM_ACCOUNT_ID --masterAccount aufacicenta.testnet --initialBalance 10
