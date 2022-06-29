@@ -74,17 +74,10 @@ In Pulse, not a single person can resolute a market, instead, a group of persons
 
 ## Deployment
 
-To deploy this contract using Near CLI:
+### To deploy this contract using Near CLI:
 
 ```
 export NEAR_AMM_ACCOUNT_ID="amm.aufacicenta.testnet"
-export NEAR_AMM_FACTORY_ACCOUNT_ID="amm-factory.aufacicenta.testnet"
-
-<!-- Deploy AMM factory -->
- near deploy --wasmFile target/wasm32-unknown-unknown/release/market_factory.wasm --accountId $NEAR_AMM_FACTORY_ACCOUNT_ID --initFunction new --initArgs '{}'
-
-<!-- Create a market from the AMM factory (args must be base64'd) -->
-near call $NEAR_AMM_FACTORY_ACCOUNT_ID create_market '{"args":"eyJtYXJrZXQiOnsiZGVzY3JpcHRpb24iOiJNYW1pZnV0dnMuQ3JlbWFzLEp1bDFzdCwyMDIyIiwiaW5mbyI6Im1hcmtldGluZm8iLCJjYXRlZ29yeSI6InNwb3J0cyIsIm9wdGlvbnMiOlsibWFtaWZ1dCIsImNyZW1hcyJdLCJzdGFydHNfYXQiOjE2NTY2OTg0MDAwMDAwMDAwMDAsImVuZHNfYXQiOjE2NTY3MDM4MDAwMDAwMDAwMDB9LCJkYW9fYWNjb3VudF9pZCI6InB1bHNlLWRhby5zcHV0bmlrdjIudGVzdG5ldCIsImNvbGxhdGVyYWxfdG9rZW5fYWNjb3VudF9pZCI6InVzZHQuZmFrZXMudGVzdG5ldCIsImZlZV9yYXRpbyI6MC4wMiwicmVzb2x1dGlvbl93aW5kb3ciOjI1OTIwMDAwMDAwMDAwMH0="}' --accountId aufacicenta.testnet --gas=60000000000000
 
 <!-- Create the account -->
 near create-account $NEAR_AMM_ACCOUNT_ID --masterAccount aufacicenta.testnet --initialBalance 10
@@ -116,4 +109,31 @@ near view $NEAR_AMM_ACCOUNT_ID balance_of '{"outcome_id":0,"account_id":"aufacic
 
 <!-- Sell outcome tokens. Amount should be in OT balance -->
 near call $NEAR_AMM_ACCOUNT_ID sell '{"outcome_id":0,"amount":180.77805}' --accountId aufacicenta.testnet
+```
+
+### To deploy through the AMM factory
+
+```
+export NEAR_AMM_FACTORY_ACCOUNT_ID="amm-factory.aufacicenta.testnet"
+
+<!-- Create AMM factory account -->
+near create-account $NEAR_AMM_FACTORY_ACCOUNT_ID --masterAccount aufacicenta.testnet --initialBalance 10
+
+<!-- Deploy AMM factory -->
+ near deploy --wasmFile target/wasm32-unknown-unknown/release/market_factory.wasm --accountId $NEAR_AMM_FACTORY_ACCOUNT_ID --initFunction new --initArgs '{}'
+
+<!-- Create a market from the AMM factory (args must be base64'd) -->
+near call $NEAR_AMM_FACTORY_ACCOUNT_ID create_market '{"args":"eyJtYXJrZXQiOnsiZGVzY3JpcHRpb24iOiJNYW1pZnV0dnMuQ3JlbWFzLEp1bDFzdCwyMDIyIiwiaW5mbyI6Im1hcmtldGluZm8iLCJjYXRlZ29yeSI6InNwb3J0cyIsIm9wdGlvbnMiOlsibWFtaWZ1dCIsImNyZW1hcyJdLCJzdGFydHNfYXQiOjE2NTY2OTg0MDAwMDAwMDAwMDAsImVuZHNfYXQiOjE2NTY3MDM4MDAwMDAwMDAwMDB9LCJkYW9fYWNjb3VudF9pZCI6InB1bHNlLWRhby5zcHV0bmlrdjIudGVzdG5ldCIsImNvbGxhdGVyYWxfdG9rZW5fYWNjb3VudF9pZCI6InVzZHQuZmFrZXMudGVzdG5ldCIsImZlZV9yYXRpbyI6MC4wMiwicmVzb2x1dGlvbl93aW5kb3ciOjI1OTIwMDAwMDAwMDAwMH0="}' --accountId aufacicenta.testnet --gas=60000000000000
+
+<!-- Transfer balance to the new AMM contract for storage -->
+near send aufacicenta.testnet market_1.amm-factory-2.aufacicenta.testnet 1
+
+<!-- Get a list of AMM contracts' addresses -->
+near view $NEAR_AMM_FACTORY_ACCOUNT_ID get_markets_list --accountId aufacicenta.testnet
+
+<!-- Get the count of existing AMM contracts' addresses -->
+near view $NEAR_AMM_FACTORY_ACCOUNT_ID get_markets_count --accountId aufacicenta.testnet
+
+<!-- Get paginated list of AMM contracts' addresses -->
+near view $NEAR_AMM_FACTORY_ACCOUNT_ID get_markets '{"from_index":0,"limit":3}' --accountId aufacicenta.testnet
 ```

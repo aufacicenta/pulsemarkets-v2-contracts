@@ -25,6 +25,7 @@ impl Default for Market {
 #[near_bindgen]
 impl Market {
     #[init]
+    #[payable]
     pub fn new(
         market: MarketData,
         dao_account_id: AccountId,
