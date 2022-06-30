@@ -66,6 +66,10 @@ impl Market {
         }
     }
 
+    pub fn resolution_window(&self) -> Timestamp {
+        self.resolution_window
+    }
+
     pub fn resolved_at(&self) -> Timestamp {
         match self.resolved_at {
             Some(timestamp) => timestamp,
