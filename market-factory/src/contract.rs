@@ -35,9 +35,8 @@ impl MarketFactory {
 
         let create_market_promise = Promise::new(market_account_id.clone())
             .create_account()
-            .add_full_access_key(env::signer_account_pk())
-            .transfer(BALANCE_CREATE_MARKET)
             .deploy_contract(MARKET_CODE.to_vec())
+            .transfer(env::attached_deposit())
             .function_call("new".to_string(), args.into(), 0, GAS_FOR_CREATE_MARKET);
 
         let create_market_callback = Promise::new(env::current_account_id()).function_call(

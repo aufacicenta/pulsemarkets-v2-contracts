@@ -11,6 +11,7 @@ impl MarketFactory {
                 self.markets.insert(&market_account_id);
                 true
             }
+            // @TODO return the attached deposit to the user
             _ => false,
         }
     }
