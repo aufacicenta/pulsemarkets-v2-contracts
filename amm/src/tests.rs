@@ -465,8 +465,7 @@ mod tests {
         let frank_balance = contract.balance_of(no, frank());
         assert_eq!(frank_balance, 0.0);
         let outcome_token_no = contract.get_outcome_token(no);
-        assert_eq!(outcome_token_no.total_supply() < 0.0, true);
-        assert_eq!(outcome_token_no.total_supply() > -1.0, true);
+        assert_eq!(outcome_token_no.total_supply().ceil(), 0.0);
 
         // bob sells his OT balance after the market is resolved. Claim earnings!!
         let bob_balance = contract.balance_of(yes, bob());
@@ -488,11 +487,8 @@ mod tests {
         assert_eq!(daniel_balance, 0.0);
 
         let outcome_token_yes = contract.get_outcome_token(yes);
-        assert_eq!(outcome_token_yes.total_supply() > 0.0, true);
-        assert_eq!(outcome_token_yes.total_supply() < 1.0, true);
+        assert_eq!(outcome_token_yes.total_supply().ceil(), 0.0);
 
-        // @TODO balance will be gt 1 because the remainder of amount_payable on sell
-        assert_eq!(contract.get_collateral_token_metadata().balance > 0.0, true);
-        assert_eq!(contract.get_collateral_token_metadata().balance < 1.5, true);
+        assert_eq!(contract.get_collateral_token_metadata().balance, 0.0);
     }
 }

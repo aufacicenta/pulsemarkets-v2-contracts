@@ -107,4 +107,33 @@ impl Market {
     pub fn balance_of(&self, outcome_id: OutcomeId, account_id: AccountId) -> WrappedBalance {
         self.get_outcome_token(outcome_id).get_balance(&account_id)
     }
+
+    pub fn get_cumulative_weight(&mut self, amount: WrappedBalance) -> WrappedBalance {
+        let mut supply = 0.0;
+
+        for id in 0..self.market.options.len() {
+            let outcome_token = self.get_outcome_token(id as OutcomeId);
+            supply += outcome_token.total_supply();
+        }
+
+        amount / supply
+    }
+
+    pub fn get_amount_payable(
+        &mut self,
+        amount: WrappedBalance,
+        outcome_id: OutcomeId,
+    ) -> (WrappedBalance, WrappedBalance) {
+        let outcome_token = self.get_outcome_token(outcome_id);
+
+        let mut weight = self.get_cumulative_weight(amount);
+        let mut amount_payable = (self.collateral_token.balance * weight).floor();
+
+        if self.is_resolved() {
+            weight = amount / outcome_token.total_supply();
+            amount_payable = (self.collateral_token.balance * weight).floor();
+        }
+
+        (weight, amount_payable)
+    }
 }
