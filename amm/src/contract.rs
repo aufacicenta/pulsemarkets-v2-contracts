@@ -115,11 +115,8 @@ impl Market {
 
         let mut outcome_token = self.get_outcome_token(payload.outcome_id);
 
-        let price = outcome_token.get_price();
-        let fee = amount * self.get_fee_ratio();
-        let exchange_rate = (amount - fee) * (1.0 - price);
-        let balance_boost = self.get_balance_boost_ratio();
-        let amount_mintable = exchange_rate * balance_boost;
+        let (price, fee, exchange_rate, balance_boost, amount_mintable) =
+            self.get_amount_mintable(amount, payload.outcome_id);
 
         log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, balance_boost: {}, amount_mintable: {}",
             amount,
