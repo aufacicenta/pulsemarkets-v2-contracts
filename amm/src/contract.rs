@@ -81,6 +81,8 @@ impl Market {
 
         self.assert_price_constant();
         self.published_at = Some(self.get_block_timestamp());
+
+        // @TODO we may need to call NEP141 storage_deposit to register each market
     }
 
     /**
@@ -178,7 +180,8 @@ impl Market {
         let outcome_token = self.get_outcome_token(outcome_id);
 
         let payee = env::signer_account_id();
-        let (weight, amount_payable) = self.get_amount_payable(amount, outcome_id);
+        let (weight, amount_payable) =
+            self.get_amount_payable(amount, outcome_id, self.collateral_token.balance);
 
         log!(
             "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",

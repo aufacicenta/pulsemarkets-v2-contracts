@@ -116,6 +116,10 @@ impl Market {
             supply += outcome_token.total_supply();
         }
 
+        if supply == 0.0 {
+            return 1.0;
+        }
+
         amount / supply
     }
 
@@ -145,14 +149,15 @@ impl Market {
         &self,
         amount: WrappedBalance,
         outcome_id: OutcomeId,
+        balance: WrappedBalance,
     ) -> (WrappedBalance, WrappedBalance) {
         let mut weight = self.get_cumulative_weight(amount);
-        let mut amount_payable = (self.collateral_token.balance * weight).floor();
+        let mut amount_payable = (balance * weight).floor();
 
         if self.is_resolved() {
             let outcome_token = self.get_outcome_token(outcome_id);
             weight = amount / outcome_token.total_supply();
-            amount_payable = (self.collateral_token.balance * weight).floor();
+            amount_payable = (balance * weight).floor();
         }
 
         (weight, amount_payable)
