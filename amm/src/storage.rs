@@ -26,6 +26,8 @@ pub struct MarketData {
     pub starts_at: Timestamp,
     // Datetime nanos: the market is closed
     pub ends_at: Timestamp,
+    // Keep track of the timezone
+    pub utc_offset: i8,
 }
 
 #[near_bindgen]

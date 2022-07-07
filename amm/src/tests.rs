@@ -115,6 +115,7 @@ mod tests {
             options: (0..options).map(|s| s.to_string()).collect(),
             starts_at,
             ends_at,
+            utc_offset: -6,
         }
     }
 
