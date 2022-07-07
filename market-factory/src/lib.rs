@@ -4,6 +4,9 @@ pub use callbacks::*;
 pub mod consts;
 pub use consts::*;
 
+pub mod views;
+pub use views::*;
+
 pub mod contract;
 pub use contract::*;
 

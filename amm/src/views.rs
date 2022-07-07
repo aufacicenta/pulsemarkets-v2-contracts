@@ -66,6 +66,10 @@ impl Market {
         }
     }
 
+    pub fn resolution_window(&self) -> Timestamp {
+        self.resolution_window
+    }
+
     pub fn resolved_at(&self) -> Timestamp {
         match self.resolved_at {
             Some(timestamp) => timestamp,
@@ -102,5 +106,55 @@ impl Market {
 
     pub fn balance_of(&self, outcome_id: OutcomeId, account_id: AccountId) -> WrappedBalance {
         self.get_outcome_token(outcome_id).get_balance(&account_id)
+    }
+
+    pub fn get_cumulative_weight(&self, amount: WrappedBalance) -> WrappedBalance {
+        let mut supply = 0.0;
+
+        for id in 0..self.market.options.len() {
+            let outcome_token = self.get_outcome_token(id as OutcomeId);
+            supply += outcome_token.total_supply();
+        }
+
+        amount / supply
+    }
+
+    pub fn get_amount_mintable(
+        &self,
+        amount: WrappedBalance,
+        outcome_id: OutcomeId,
+    ) -> (
+        Price,
+        WrappedBalance,
+        WrappedBalance,
+        WrappedBalance,
+        WrappedBalance,
+    ) {
+        let outcome_token = self.get_outcome_token(outcome_id);
+
+        let price = outcome_token.get_price();
+        let fee = amount * self.get_fee_ratio();
+        let exchange_rate = (amount - fee) * (1.0 - price);
+        let balance_boost = self.get_balance_boost_ratio();
+        let amount_mintable = exchange_rate * balance_boost;
+
+        (price, fee, exchange_rate, balance_boost, amount_mintable)
+    }
+
+    pub fn get_amount_payable(
+        &self,
+        amount: WrappedBalance,
+        outcome_id: OutcomeId,
+    ) -> (WrappedBalance, WrappedBalance) {
+        let mut weight = self.get_cumulative_weight(amount);
+        let mut amount_payable = (self.collateral_token.balance * weight).floor();
+
+        if self.is_resolved() {
+            let outcome_token = self.get_outcome_token(outcome_id);
+            weight = amount / outcome_token.total_supply();
+            amount_payable = (self.collateral_token.balance * weight).floor();
+        }
+
+        (weight, amount_payable)
     }
 }

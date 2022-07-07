@@ -115,11 +115,8 @@ impl Market {
 
         let mut outcome_token = self.get_outcome_token(payload.outcome_id);
 
-        let price = outcome_token.get_price();
-        let fee = amount * self.get_fee_ratio();
-        let exchange_rate = (amount - fee) * (1.0 - price);
-        let balance_boost = self.get_balance_boost_ratio();
-        let amount_mintable = exchange_rate * balance_boost;
+        let (price, fee, exchange_rate, balance_boost, amount_mintable) =
+            self.get_amount_mintable(amount, payload.outcome_id);
 
         log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, balance_boost: {}, amount_mintable: {}",
             amount,
@@ -181,13 +178,7 @@ impl Market {
         let outcome_token = self.get_outcome_token(outcome_id);
 
         let payee = env::signer_account_id();
-        let mut weight = self.get_cumulative_weight(amount);
-        let mut amount_payable = (self.collateral_token.balance * weight).floor();
-
-        if self.is_resolved() {
-            weight = amount / outcome_token.total_supply();
-            amount_payable = (self.collateral_token.balance * weight).floor();
-        }
+        let (weight, amount_payable) = self.get_amount_payable(amount, outcome_id);
 
         log!(
             "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",
@@ -204,7 +195,6 @@ impl Market {
 
         let ft_transfer_promise = Promise::new(self.collateral_token.id.clone()).function_call(
             "ft_transfer".to_string(),
-            // @TODO amount_payable should not be float, but set to CT precision decimals
             json!({
                 "amount": amount_payable.to_string(),
                 "receiver_id": payee })
@@ -365,16 +355,5 @@ impl Market {
                     .insert(&(id as OutcomeId), &outcome_token);
             }
         }
-    }
-
-    fn get_cumulative_weight(&mut self, amount: WrappedBalance) -> WrappedBalance {
-        let mut supply = 0.0;
-
-        for id in 0..self.market.options.len() {
-            let outcome_token = self.get_outcome_token(id as OutcomeId);
-            supply += outcome_token.total_supply();
-        }
-
-        amount / supply
     }
 }

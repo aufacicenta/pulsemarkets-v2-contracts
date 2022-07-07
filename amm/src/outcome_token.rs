@@ -1,4 +1,4 @@
-use near_sdk::{collections::UnorderedMap, AccountId};
+use near_sdk::{collections::UnorderedMap, log, AccountId};
 
 use crate::storage::{OutcomeId, OutcomeToken, Price, PriceRatio, WrappedBalance};
 
@@ -38,6 +38,14 @@ impl OutcomeToken {
         self.balances.insert(account_id, &new_balance);
         self.total_supply += amount;
         self.accounts_length += if balance == 0.0 { 1 } else { 0 };
+
+        log!(
+            "Minted {} of outcome_token [{}] for {}. Supply: {}",
+            amount,
+            self.outcome_id,
+            account_id,
+            self.total_supply()
+        );
     }
 
     /**
@@ -58,6 +66,14 @@ impl OutcomeToken {
         } else {
             0
         };
+
+        log!(
+            "Burned {} of outcome_token [{}] for {}. Supply: {}",
+            amount,
+            self.outcome_id,
+            account_id,
+            self.total_supply()
+        );
     }
 
     /**

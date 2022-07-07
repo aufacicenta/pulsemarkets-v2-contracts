@@ -1,7 +1,7 @@
-use near_sdk::json_types::Base64VecU8;
-use near_sdk::serde_json::json;
-use near_sdk::{env, near_bindgen};
-use near_sdk::{AccountId, Promise};
+use near_sdk::{
+    collections::UnorderedSet, env, json_types::Base64VecU8, near_bindgen, serde_json::json,
+    AccountId, Promise,
+};
 use std::default::Default;
 
 use crate::consts::*;
@@ -22,12 +22,12 @@ impl MarketFactory {
         }
 
         Self {
-            markets: Vec::new(),
+            markets: UnorderedSet::new(b"d".to_vec()),
         }
     }
 
     #[payable]
-    pub fn create_market(&mut self, args: Base64VecU8, num_options: u8) -> Promise {
+    pub fn create_market(&mut self, args: Base64VecU8) -> Promise {
         let name = format!("market_{}", self.markets.len() + 1);
         let market_account_id: AccountId = format!("{}.{}", name, env::current_account_id())
             .parse()
@@ -35,17 +35,9 @@ impl MarketFactory {
 
         let create_market_promise = Promise::new(market_account_id.clone())
             .create_account()
-            .add_full_access_key(env::signer_account_pk())
-            .transfer(BALANCE_CREATE_MARKET)
             .deploy_contract(MARKET_CODE.to_vec())
+            .transfer(env::attached_deposit())
             .function_call("new".to_string(), args.into(), 0, GAS_FOR_CREATE_MARKET);
-
-        let process_market_options_promise = Promise::new(market_account_id.clone()).function_call(
-            "publish_market".to_string(),
-            json!({}).to_string().into_bytes(),
-            BALANCE_PROPOSAL_BOND * num_options as u128,
-            GAS_FOR_PROCESS_MARKET_OPTIONS * num_options as u64,
-        );
 
         let create_market_callback = Promise::new(env::current_account_id()).function_call(
             "on_create_market_callback".to_string(),
@@ -56,8 +48,6 @@ impl MarketFactory {
             GAS_FOR_CREATE_MARKET_CALLBACK,
         );
 
-        create_market_promise
-            .and(process_market_options_promise)
-            .then(create_market_callback)
+        create_market_promise.then(create_market_callback)
     }
 }

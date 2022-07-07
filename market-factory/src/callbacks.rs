@@ -6,19 +6,13 @@ use crate::storage::*;
 impl MarketFactory {
     #[private]
     pub fn on_create_market_callback(&mut self, market_account_id: AccountId) -> bool {
-        let create_response: bool = match env::promise_result(0) {
+        match env::promise_result(0) {
             PromiseResult::Successful(_result) => {
-                self.markets.push(market_account_id);
+                self.markets.insert(&market_account_id);
                 true
             }
+            // @TODO return the attached deposit to the user
             _ => false,
-        };
-
-        let publish_response: bool = match env::promise_result(1) {
-            PromiseResult::Successful(_result) => true,
-            _ => false,
-        };
-
-        create_response && publish_response
+        }
     }
 }
