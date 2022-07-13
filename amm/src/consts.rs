@@ -2,8 +2,8 @@ use near_sdk::{Balance, Gas, ONE_YOCTO};
 
 pub const GAS_CREATE_DAO_PROPOSAL: Gas = Gas(10_000_000_000_000);
 pub const GAS_CREATE_DAO_PROPOSAL_CALLBACK: Gas = Gas(2_000_000_000_000);
-pub const GAS_FT_TRANSFER: Gas = Gas(2_000_000_000_000);
-pub const GAS_FT_TRANSFER_CALLBACK: Gas = Gas(2_000_000_000_000);
+pub const GAS_FT_TRANSFER: Gas = Gas(33_000_000_000_000);
+pub const GAS_FT_TRANSFER_CALLBACK: Gas = Gas(33_000_000_000_000);
 pub const GAS_FT_METADATA: Gas = Gas(2_000_000_000_000);
 pub const GAS_FT_METADATA_CALLBACK: Gas = Gas(2_000_000_000_000);
 pub const GAS_STORAGE_DEPOSIT: Gas = Gas(30_000_000_000_000);
