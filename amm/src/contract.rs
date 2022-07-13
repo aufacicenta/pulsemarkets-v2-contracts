@@ -13,15 +13,6 @@ impl Default for Market {
     }
 }
 
-/**
- * GLOSSARY
- *
- * Collateral Token, CT
- * Liquidity Provider, LP
- * Liquidity Provider Tokens, LPT
- * Outcome Token, OT
- *
- */
 #[near_bindgen]
 impl Market {
     #[init]
@@ -82,7 +73,24 @@ impl Market {
         self.assert_price_constant();
         self.published_at = Some(self.get_block_timestamp());
 
-        // @TODO we may need to call NEP141 storage_deposit to register each market
+        let storage_deposit_promise = Promise::new(self.collateral_token.id.clone()).function_call(
+            "storage_deposit".to_string(),
+            json!({ "account_id": env::current_account_id() })
+                .to_string()
+                .into_bytes(),
+            STORAGE_DEPOSIT_BOND,
+            GAS_STORAGE_DEPOSIT,
+        );
+
+        let storage_deposit_callback_promise = Promise::new(env::current_account_id())
+            .function_call(
+                "on_storage_deposit_callback".to_string(),
+                json!({}).to_string().into_bytes(),
+                0,
+                GAS_STORAGE_DEPOSIT_CALLBACK,
+            );
+
+        storage_deposit_promise.then(storage_deposit_callback_promise);
     }
 
     /**
