@@ -269,7 +269,6 @@ impl Market {
     #[private]
     pub fn update_prices(&mut self, outcome_id: OutcomeId, set_price_option: SetPriceOptions) {
         let price_ratio = self.get_price_ratio(outcome_id);
-        let mut k: Price = 0.0;
 
         for id in 0..self.market.options.len() {
             let mut outcome_token = self.get_outcome_token(id as OutcomeId);
@@ -297,11 +296,7 @@ impl Market {
 
             self.outcome_tokens
                 .insert(&(id as OutcomeId), &outcome_token);
-
-            k += outcome_token.get_price();
         }
-
-        assert_eq!(k, 1.0, "ERR_PRICE_CONSTANT_SHOULD_EQ_1");
     }
 
     #[private]
