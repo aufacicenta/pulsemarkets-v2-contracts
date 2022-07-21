@@ -22,6 +22,7 @@ impl OutcomeToken {
             accounts_length: 0,
             outcome_id,
             price,
+            is_active: true,
         }
     }
 
@@ -31,6 +32,7 @@ impl OutcomeToken {
      * @param amount the amount of tokens to mint
      */
     pub fn mint(&mut self, account_id: &AccountId, amount: WrappedBalance) {
+        assert_eq!(self.is_active, true, "ERR_MINT_INACTIVE");
         assert!(amount > 0.0, "ERR_MINT_AMOUNT_LOWER_THAN_0");
 
         let balance = self.balances.get(account_id).unwrap_or(0.0);
@@ -54,6 +56,8 @@ impl OutcomeToken {
      * @param amount, the amount of tokens to burn
      */
     pub fn burn(&mut self, account_id: &AccountId, amount: WrappedBalance) {
+        assert_eq!(self.is_active, true, "ERR_BURN_INACTIVE");
+
         let balance = self.balances.get(&account_id).unwrap_or(0.0);
 
         assert!(balance >= amount, "ERR_BURN_INSUFFICIENT_BALANCE");
@@ -80,12 +84,8 @@ impl OutcomeToken {
      * @notice burn all the tokens
      * @param account_id, the account_id to burn tokens for
      */
-    pub fn burn_all(&mut self) {
-        for values in self.balances.to_vec() {
-            let account_id = &values.0;
-            let amount = values.1;
-            self.burn(account_id, amount);
-        }
+    pub fn deactivate(&mut self) {
+        self.is_active = false;
     }
 
     /**
@@ -145,6 +145,13 @@ impl OutcomeToken {
     pub fn total_supply(&self) -> WrappedBalance {
         self.total_supply
     }
+
+    /**
+     * @returns token is active
+     */
+    pub fn is_active(&self) -> bool {
+        self.is_active
+    }
 }
 
 impl OutcomeToken {
@@ -154,6 +161,7 @@ impl OutcomeToken {
      * @param amount the amount of tokens to deposit
      */
     fn _deposit(&mut self, receiver_id: &AccountId, amount: WrappedBalance) {
+        assert_eq!(self.is_active, true, "ERR_DEPOSIT_INACTIVE");
         assert!(amount > 0.0, "ERR_DEPOSIT_AMOUNT_LOWER_THAN_0");
 
         let receiver_balance = self.balances.get(&receiver_id).unwrap_or(0.0);
@@ -168,6 +176,7 @@ impl OutcomeToken {
      * @param amount of tokens to withdraw
      */
     fn _withdraw(&mut self, sender_id: &AccountId, amount: WrappedBalance) {
+        assert_eq!(self.is_active, true, "ERR_WITHDRAW_INACTIVE");
         let sender_balance = self.balances.get(&sender_id).unwrap_or(0.0);
 
         assert!(amount > 0.0, "ERR_WITHDRAW_AMOUNT_LOWER_THAN_0");

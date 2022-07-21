@@ -67,6 +67,8 @@ pub struct OutcomeToken {
     pub outcome_id: OutcomeId,
     // a value between 0 & 1
     pub price: WrappedBalance,
+    // can mint more tokens
+    pub is_active: bool,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]

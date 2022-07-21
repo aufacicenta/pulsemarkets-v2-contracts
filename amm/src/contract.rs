@@ -356,7 +356,7 @@ impl Market {
         for id in 0..self.market.options.len() {
             let mut outcome_token = self.get_outcome_token(id as OutcomeId);
             if outcome_token.outcome_id != outcome_id {
-                outcome_token.burn_all();
+                outcome_token.deactivate();
                 self.outcome_tokens
                     .insert(&(id as OutcomeId), &outcome_token);
             }

@@ -504,12 +504,8 @@ mod tests {
         // Resolve the market: Burn the losers
         testing_env!(context.signer_account_id(dao_account_id()).build());
         resolve(&mut contract, &mut collateral_token_balance, yes);
-        let emily_balance = contract.balance_of(no, emily());
-        assert_eq!(emily_balance, 0.0);
-        let frank_balance = contract.balance_of(no, frank());
-        assert_eq!(frank_balance, 0.0);
         let outcome_token_no = contract.get_outcome_token(no);
-        assert_eq!(outcome_token_no.total_supply().floor(), 0.0);
+        assert_eq!(outcome_token_no.is_active(), false);
 
         // bob sells his OT balance after the market is resolved. Claim earnings!!
         let bob_balance = contract.balance_of(yes, bob());
