@@ -109,7 +109,11 @@ impl OutcomeToken {
      * @param price_ratio a number between 0 and 1. Price should always > 0 < 1
      */
     pub fn decrease_price(&mut self, price_ratio: PriceRatio) {
-        self.set_price(self.price - price_ratio);
+        if self.price - price_ratio <= 0.0 {
+            self.set_price(0.01);
+        } else {
+            self.set_price(self.price - price_ratio);
+        }
     }
 
     /**
