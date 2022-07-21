@@ -28,16 +28,7 @@ impl Market {
     }
 
     pub fn get_balance_boost_ratio(&self) -> WrappedBalance {
-        let boost = self.get_block_timestamp() as f32 / self.market.ends_at as f32;
-
-        log!(
-            "GET_BALANCE_BOOST_RATIO from_timestamp: {}, block_timestamp: {}, boost: {}",
-            self.market.ends_at as f32,
-            self.get_block_timestamp(),
-            boost,
-        );
-
-        1.0 + boost as WrappedBalance
+        1.0
     }
 
     pub fn get_outcome_token(&self, outcome_id: OutcomeId) -> OutcomeToken {
