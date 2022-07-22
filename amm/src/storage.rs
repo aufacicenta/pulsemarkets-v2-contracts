@@ -59,6 +59,8 @@ pub struct OutcomeToken {
     // map `AccountId` to corresponding `Balance` in the market
     #[serde(skip_serializing)]
     pub balances: UnorderedMap<AccountId, WrappedBalance>,
+    // vec! of price history by block_timestamp
+    pub price_history: Vec<PriceHistory>,
     // keep the number of accounts with positive balance. Use for calculating the price_ratio
     pub accounts_length: u64,
     // total supply of this outcome_token
@@ -75,6 +77,12 @@ pub struct OutcomeToken {
 pub struct CollateralToken {
     pub id: AccountId,
     pub balance: WrappedBalance,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
+pub struct PriceHistory {
+    pub timestamp: u64,
+    pub price: WrappedBalance,
 }
 
 #[derive(BorshStorageKey, BorshSerialize)]

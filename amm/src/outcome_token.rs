@@ -1,6 +1,6 @@
-use near_sdk::{collections::UnorderedMap, log, AccountId};
+use near_sdk::{collections::UnorderedMap, env, log, AccountId};
 
-use crate::storage::{OutcomeId, OutcomeToken, Price, PriceRatio, WrappedBalance};
+use crate::storage::{OutcomeId, OutcomeToken, Price, PriceHistory, PriceRatio, WrappedBalance};
 
 impl Default for OutcomeToken {
     fn default() -> Self {
@@ -23,6 +23,7 @@ impl OutcomeToken {
             outcome_id,
             price,
             is_active: true,
+            price_history: Vec::new(),
         }
     }
 
@@ -101,7 +102,12 @@ impl OutcomeToken {
      * @param price_ratio a number between 0 and 1. Price should always > 0 < 1
      */
     pub fn increase_price(&mut self, price_ratio: PriceRatio) {
-        self.set_price(self.price + price_ratio);
+        let price = self.price + price_ratio;
+        self.set_price(price);
+        self.push_price_history(PriceHistory {
+            timestamp: env::block_timestamp(),
+            price,
+        })
     }
 
     /**
@@ -109,11 +115,17 @@ impl OutcomeToken {
      * @param price_ratio a number between 0 and 1. Price should always > 0 < 1
      */
     pub fn decrease_price(&mut self, price_ratio: PriceRatio) {
-        if self.price - price_ratio <= 0.0 {
-            self.set_price(0.01);
+        let price = if self.price - price_ratio <= 0.0 {
+            0.01
         } else {
-            self.set_price(self.price - price_ratio);
-        }
+            self.price - price_ratio
+        };
+
+        self.set_price(price);
+        self.push_price_history(PriceHistory {
+            timestamp: env::block_timestamp(),
+            price,
+        });
     }
 
     /**
@@ -151,6 +163,20 @@ impl OutcomeToken {
      */
     pub fn is_active(&self) -> bool {
         self.is_active
+    }
+
+    /**
+     * @returns price_history
+     */
+    pub fn price_history(&self) -> Vec<PriceHistory> {
+        self.price_history.to_vec()
+    }
+
+    /**
+     * @returns price_history
+     */
+    pub fn push_price_history(&mut self, value: PriceHistory) {
+        self.price_history.push(value)
     }
 }
 
