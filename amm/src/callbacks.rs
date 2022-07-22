@@ -33,6 +33,16 @@ impl Market {
     }
 
     #[private]
+    pub fn on_storage_deposit_callback(&mut self) {
+        match env::promise_result(0) {
+            PromiseResult::Successful(_result) => {
+                log!("on_storage_deposit_callback: success");
+            }
+            _ => env::panic_str("ERR_ON_STORAGE_DEPOSIT_CALLBACK"),
+        }
+    }
+
+    #[private]
     pub fn on_create_proposals_callback(&mut self) {
         match env::promise_result(0) {
             PromiseResult::Successful(_res) => {}

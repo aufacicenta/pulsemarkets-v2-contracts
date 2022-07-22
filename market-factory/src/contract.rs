@@ -39,6 +39,8 @@ impl MarketFactory {
             .transfer(env::attached_deposit())
             .function_call("new".to_string(), args.into(), 0, GAS_FOR_CREATE_MARKET);
 
+        // @TODO if this promise fails, the funds (attached_deposit) are not returned to the signer
+
         let create_market_callback = Promise::new(env::current_account_id()).function_call(
             "on_create_market_callback".to_string(),
             json!({ "market_account_id": market_account_id })

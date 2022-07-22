@@ -5,6 +5,7 @@ mod tests {
     use near_sdk::test_utils::test_env::{alice, bob, carol};
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::{testing_env, AccountId, Balance, PromiseResult};
+    use rand::seq::SliceRandom;
 
     const _ATTACHED_DEPOSIT: Balance = 1_000_000_000_000_000_000_000_000; // 1 Near
 
@@ -115,6 +116,7 @@ mod tests {
             options: (0..options).map(|s| s.to_string()).collect(),
             starts_at,
             ends_at,
+            utc_offset: -6,
         }
     }
 
@@ -173,6 +175,48 @@ mod tests {
         assert_eq!(outcome_token_0.get_price(), 0.3333333333333333);
         assert_eq!(outcome_token_1.get_price(), 0.3333333333333333);
         assert_eq!(outcome_token_2.get_price(), 0.3333333333333333);
+    }
+
+    #[test]
+    fn test_publish_market_with_4_outcomes() {
+        let mut context = setup_context();
+
+        let now = Utc::now();
+        testing_env!(context
+            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
+            .build());
+        let starts_at = now + Duration::days(5);
+        let ends_at = starts_at + Duration::days(10);
+        let resolution_window = ends_at + Duration::days(3);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            4,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
+
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+        );
+
+        publish(&mut contract, &context);
+
+        let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
+        let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
+        let outcome_token_2: OutcomeToken = contract.get_outcome_token(2);
+        let outcome_token_3: OutcomeToken = contract.get_outcome_token(3);
+
+        assert_eq!(outcome_token_0.total_supply(), 0.0);
+        assert_eq!(outcome_token_1.total_supply(), 0.0);
+        assert_eq!(outcome_token_2.total_supply(), 0.0);
+        assert_eq!(outcome_token_3.total_supply(), 0.0);
+
+        assert_eq!(outcome_token_0.get_price(), 0.25);
+        assert_eq!(outcome_token_1.get_price(), 0.25);
+        assert_eq!(outcome_token_2.get_price(), 0.25);
+        assert_eq!(outcome_token_3.get_price(), 0.25);
     }
 
     #[test]
@@ -460,12 +504,8 @@ mod tests {
         // Resolve the market: Burn the losers
         testing_env!(context.signer_account_id(dao_account_id()).build());
         resolve(&mut contract, &mut collateral_token_balance, yes);
-        let emily_balance = contract.balance_of(no, emily());
-        assert_eq!(emily_balance, 0.0);
-        let frank_balance = contract.balance_of(no, frank());
-        assert_eq!(frank_balance, 0.0);
         let outcome_token_no = contract.get_outcome_token(no);
-        assert_eq!(outcome_token_no.total_supply().floor(), 0.0);
+        assert_eq!(outcome_token_no.is_active(), false);
 
         // bob sells his OT balance after the market is resolved. Claim earnings!!
         let bob_balance = contract.balance_of(yes, bob());
@@ -490,5 +530,58 @@ mod tests {
         assert_eq!(outcome_token_yes.total_supply().ceil(), 0.0);
 
         assert_eq!(contract.get_collateral_token_metadata().balance, 0.0);
+    }
+
+    #[test]
+    fn test_market_with_4_outcomes() {
+        let mut context = setup_context();
+
+        let mut collateral_token_balance: WrappedBalance = 0.0;
+
+        let outcome_1 = 0;
+        let outcome_2 = 1;
+        let outcome_3 = 2;
+        let outcome_4 = 3;
+
+        let now = Utc::now();
+        testing_env!(context
+            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
+            .build());
+        let starts_at = now + Duration::days(5);
+        let ends_at = starts_at + Duration::days(10);
+        let resolution_window = ends_at + Duration::days(3);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            4,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
+
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+        );
+
+        // @TODO publish may also be made by a CT ft_on_transfer
+        publish(&mut contract, &context);
+
+        let amounts = vec![100.0, 200.0, 300.0, 50.0, 10.0, 20.0, 500.0];
+        let buyers = vec![alice(), bob(), carol(), daniel(), emily(), frank(), gus()];
+        let outcomes = vec![outcome_1, outcome_2, outcome_3, outcome_4];
+
+        for _n in 1..20 {
+            let buyer = buyers.choose(&mut rand::thread_rng()).unwrap();
+            let amount = amounts.choose(&mut rand::thread_rng()).unwrap();
+            let outcome = outcomes.choose(&mut rand::thread_rng()).unwrap();
+
+            buy(
+                &mut contract,
+                &mut collateral_token_balance,
+                buyer.clone(),
+                amount.clone(),
+                outcome.clone(),
+            );
+        }
     }
 }

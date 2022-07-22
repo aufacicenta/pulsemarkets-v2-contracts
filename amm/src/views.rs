@@ -28,16 +28,7 @@ impl Market {
     }
 
     pub fn get_balance_boost_ratio(&self) -> WrappedBalance {
-        let boost = self.get_block_timestamp() as f32 / self.market.ends_at as f32;
-
-        log!(
-            "GET_BALANCE_BOOST_RATIO from_timestamp: {}, block_timestamp: {}, boost: {}",
-            self.market.ends_at as f32,
-            self.get_block_timestamp(),
-            boost,
-        );
-
-        1.0 + boost as WrappedBalance
+        1.0
     }
 
     pub fn get_outcome_token(&self, outcome_id: OutcomeId) -> OutcomeToken {
@@ -116,6 +107,10 @@ impl Market {
             supply += outcome_token.total_supply();
         }
 
+        if supply == 0.0 {
+            return 1.0;
+        }
+
         amount / supply
     }
 
@@ -145,14 +140,15 @@ impl Market {
         &self,
         amount: WrappedBalance,
         outcome_id: OutcomeId,
+        balance: WrappedBalance,
     ) -> (WrappedBalance, WrappedBalance) {
         let mut weight = self.get_cumulative_weight(amount);
-        let mut amount_payable = (self.collateral_token.balance * weight).floor();
+        let mut amount_payable = (balance * weight).floor();
 
         if self.is_resolved() {
             let outcome_token = self.get_outcome_token(outcome_id);
             weight = amount / outcome_token.total_supply();
-            amount_payable = (self.collateral_token.balance * weight).floor();
+            amount_payable = (balance * weight).floor();
         }
 
         (weight, amount_payable)

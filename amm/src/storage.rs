@@ -26,6 +26,8 @@ pub struct MarketData {
     pub starts_at: Timestamp,
     // Datetime nanos: the market is closed
     pub ends_at: Timestamp,
+    // Keep track of the timezone
+    pub utc_offset: i8,
 }
 
 #[near_bindgen]
@@ -57,6 +59,8 @@ pub struct OutcomeToken {
     // map `AccountId` to corresponding `Balance` in the market
     #[serde(skip_serializing)]
     pub balances: UnorderedMap<AccountId, WrappedBalance>,
+    // vec! of price history by block_timestamp
+    pub price_history: Vec<PriceHistory>,
     // keep the number of accounts with positive balance. Use for calculating the price_ratio
     pub accounts_length: u64,
     // total supply of this outcome_token
@@ -65,12 +69,20 @@ pub struct OutcomeToken {
     pub outcome_id: OutcomeId,
     // a value between 0 & 1
     pub price: WrappedBalance,
+    // can mint more tokens
+    pub is_active: bool,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
 pub struct CollateralToken {
     pub id: AccountId,
     pub balance: WrappedBalance,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
+pub struct PriceHistory {
+    pub timestamp: u64,
+    pub price: WrappedBalance,
 }
 
 #[derive(BorshStorageKey, BorshSerialize)]

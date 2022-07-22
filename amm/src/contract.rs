@@ -13,15 +13,6 @@ impl Default for Market {
     }
 }
 
-/**
- * GLOSSARY
- *
- * Collateral Token, CT
- * Liquidity Provider, LP
- * Liquidity Provider Tokens, LPT
- * Outcome Token, OT
- *
- */
 #[near_bindgen]
 impl Market {
     #[init]
@@ -81,6 +72,25 @@ impl Market {
 
         self.assert_price_constant();
         self.published_at = Some(self.get_block_timestamp());
+
+        let storage_deposit_promise = Promise::new(self.collateral_token.id.clone()).function_call(
+            "storage_deposit".to_string(),
+            json!({ "account_id": env::current_account_id() })
+                .to_string()
+                .into_bytes(),
+            STORAGE_DEPOSIT_BOND,
+            GAS_STORAGE_DEPOSIT,
+        );
+
+        let storage_deposit_callback_promise = Promise::new(env::current_account_id())
+            .function_call(
+                "on_storage_deposit_callback".to_string(),
+                json!({}).to_string().into_bytes(),
+                0,
+                GAS_STORAGE_DEPOSIT_CALLBACK,
+            );
+
+        storage_deposit_promise.then(storage_deposit_callback_promise);
     }
 
     /**
@@ -178,7 +188,8 @@ impl Market {
         let outcome_token = self.get_outcome_token(outcome_id);
 
         let payee = env::signer_account_id();
-        let (weight, amount_payable) = self.get_amount_payable(amount, outcome_id);
+        let (weight, amount_payable) =
+            self.get_amount_payable(amount, outcome_id, self.collateral_token.balance);
 
         log!(
             "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",
@@ -258,7 +269,6 @@ impl Market {
     #[private]
     pub fn update_prices(&mut self, outcome_id: OutcomeId, set_price_option: SetPriceOptions) {
         let price_ratio = self.get_price_ratio(outcome_id);
-        let mut k: Price = 0.0;
 
         for id in 0..self.market.options.len() {
             let mut outcome_token = self.get_outcome_token(id as OutcomeId);
@@ -286,11 +296,7 @@ impl Market {
 
             self.outcome_tokens
                 .insert(&(id as OutcomeId), &outcome_token);
-
-            k += outcome_token.get_price();
         }
-
-        assert_eq!(k, 1.0, "ERR_PRICE_CONSTANT_SHOULD_EQ_1");
     }
 
     #[private]
@@ -350,7 +356,7 @@ impl Market {
         for id in 0..self.market.options.len() {
             let mut outcome_token = self.get_outcome_token(id as OutcomeId);
             if outcome_token.outcome_id != outcome_id {
-                outcome_token.burn_all();
+                outcome_token.deactivate();
                 self.outcome_tokens
                     .insert(&(id as OutcomeId), &outcome_token);
             }
