@@ -82,13 +82,27 @@ impl Market {
         }
     }
 
+    /**
+     * A market is open (buys and sells are enabled) 3/4 before the event ends
+     * the reason being that users should not buy or sell 1 minute before the outcome becomes evident
+     */
     pub fn is_open(&self) -> bool {
-        self.market.starts_at < self.get_block_timestamp()
-            && self.market.ends_at >= self.get_block_timestamp()
+        let diff = (self.market.ends_at - self.market.starts_at) as f64 * 0.75;
+        let limit = self.market.ends_at - diff as i64;
+
+        self.get_block_timestamp() <= limit
+    }
+
+    pub fn is_closed(&self) -> bool {
+        !self.is_open()
     }
 
     pub fn is_over(&self) -> bool {
         self.get_block_timestamp() > self.market.ends_at
+    }
+
+    pub fn has_begun(&self) -> bool {
+        self.get_block_timestamp() > self.market.starts_at
     }
 
     pub fn is_resolution_window_expired(&self) -> bool {

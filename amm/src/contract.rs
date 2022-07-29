@@ -120,7 +120,7 @@ impl Market {
         payload: BuyArgs,
     ) -> WrappedBalance {
         self.assert_is_published();
-        self.assert_is_not_over();
+        self.assert_is_open();
         self.assert_is_not_resolved();
 
         let mut outcome_token = self.get_outcome_token(payload.outcome_id);
@@ -182,6 +182,10 @@ impl Market {
         }
 
         if !self.is_resolved() {
+            if self.is_closed() && !self.is_over() {
+                env::panic_str("ERR_SELL_MARKET_IS_CLOSED_FOR_SELLS_UNTIL_RESOLUTION");
+            }
+
             self.assert_is_not_under_resolution();
         }
 

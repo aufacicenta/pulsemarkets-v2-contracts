@@ -127,16 +127,27 @@ mod tests {
 
     #[test]
     fn test_publish_binary_market() {
-        let context = setup_context();
+        let mut context = setup_context();
 
-        let starts_at = add_expires_at_nanos(100);
-        let ends_at = add_expires_at_nanos(1000);
-        let resolution_window = 3000;
+        let now = Utc::now();
+        testing_env!(context
+            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
+            .build());
+        let starts_at = now + Duration::hours(1);
+        let ends_at = starts_at + Duration::hours(1);
+        let resolution_window = ends_at + Duration::hours(3);
 
-        let market_data: MarketData =
-            create_market_data("a market description".to_string(), 2, starts_at, ends_at);
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
 
-        let mut contract: Market = setup_contract(market_data, resolution_window);
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+        );
 
         publish(&mut contract, &context);
 
@@ -151,16 +162,27 @@ mod tests {
 
     #[test]
     fn test_publish_market_with_3_outcomes() {
-        let context = setup_context();
+        let mut context = setup_context();
 
-        let starts_at = add_expires_at_nanos(100);
-        let ends_at = add_expires_at_nanos(1000);
-        let resolution_window = 3000;
+        let now = Utc::now();
+        testing_env!(context
+            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
+            .build());
+        let starts_at = now + Duration::hours(1);
+        let ends_at = starts_at + Duration::hours(1);
+        let resolution_window = ends_at + Duration::hours(3);
 
-        let market_data: MarketData =
-            create_market_data("a market description".to_string(), 3, starts_at, ends_at);
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            3,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
 
-        let mut contract: Market = setup_contract(market_data, resolution_window);
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+        );
 
         publish(&mut contract, &context);
 
@@ -583,5 +605,81 @@ mod tests {
                 outcome.clone(),
             );
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "ERR_EVENT_HAS_STARTED")]
+    fn test_publish_error_after_event_starts() {
+        let mut context = setup_context();
+
+        let now = Utc::now();
+        testing_env!(context
+            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
+            .build());
+        let starts_at = now - Duration::hours(1);
+        let ends_at = starts_at + Duration::hours(1);
+        let resolution_window = ends_at + Duration::hours(3);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
+
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+        );
+
+        publish(&mut contract, &context);
+    }
+
+    #[test]
+    #[should_panic(expected = "ERR_MARKET_IS_CLOSED")]
+    fn test_buy_error_if_event_is_ongoing() {
+        let mut context = setup_context();
+
+        let mut collateral_token_balance: WrappedBalance = 0.0;
+
+        let yes = 0;
+
+        let now = Utc::now();
+        testing_env!(context
+            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
+            .build());
+        let starts_at = now + Duration::hours(1);
+        let ends_at = starts_at + Duration::hours(1);
+        let resolution_window = ends_at + Duration::hours(3);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
+
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+        );
+
+        publish(&mut contract, &context);
+
+        testing_env!(context
+            .block_timestamp(
+                (starts_at + Duration::minutes(20))
+                    .timestamp_nanos()
+                    .try_into()
+                    .unwrap()
+            )
+            .build());
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            400.0,
+            yes,
+        );
     }
 }

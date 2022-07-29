@@ -23,8 +23,8 @@ impl Market {
     }
 
     pub fn assert_in_stand_by(&self) {
-        if self.is_open() {
-            env::panic_str("ERR_MARKET_IS_OPEN");
+        if self.has_begun() {
+            env::panic_str("ERR_EVENT_HAS_STARTED");
         }
     }
 
@@ -41,12 +41,6 @@ impl Market {
     pub fn assert_is_open(&self) {
         if !self.is_open() {
             env::panic_str("ERR_MARKET_IS_CLOSED");
-        }
-    }
-
-    pub fn assert_is_not_over(&self) {
-        if self.is_over() {
-            env::panic_str("ERR_EVENT_IS_OVER");
         }
     }
 
