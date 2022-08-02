@@ -82,13 +82,18 @@ impl Market {
         }
     }
 
+    pub fn get_buy_sell_timestamp(&self) -> i64 {
+        let diff = (self.market.ends_at - self.market.starts_at) as f64 * 0.75;
+
+        self.market.ends_at - diff as i64
+    }
+
     /**
      * A market is open (buys and sells are enabled) 3/4 before the event ends
      * the reason being that users should not buy or sell 1 minute before the outcome becomes evident
      */
     pub fn is_open(&self) -> bool {
-        let diff = (self.market.ends_at - self.market.starts_at) as f64 * 0.75;
-        let limit = self.market.ends_at - diff as i64;
+        let limit = self.get_buy_sell_timestamp();
 
         self.get_block_timestamp() <= limit
     }
