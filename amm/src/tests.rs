@@ -682,4 +682,56 @@ mod tests {
             yes,
         );
     }
+
+    #[test]
+    #[should_panic(expected = "ERR_SELL_MARKET_IS_CLOSED_FOR_SELLS_UNTIL_RESOLUTION")]
+    fn test_sell_error_if_event_is_ongoing() {
+        let mut context = setup_context();
+
+        let mut collateral_token_balance: WrappedBalance = 0.0;
+
+        let yes = 0;
+
+        let now = Utc::now();
+        testing_env!(context
+            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
+            .build());
+        let starts_at = now + Duration::hours(1);
+        let ends_at = starts_at + Duration::hours(1);
+        let resolution_window = ends_at + Duration::hours(3);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
+
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+        );
+
+        publish(&mut contract, &context);
+
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            400.0,
+            yes,
+        );
+
+        testing_env!(context
+            .block_timestamp(
+                (starts_at + Duration::minutes(20))
+                    .timestamp_nanos()
+                    .try_into()
+                    .unwrap()
+            )
+            .signer_account_id(alice())
+            .build());
+        let alice_balance = contract.balance_of(yes, alice());
+        sell(&mut contract, alice(), alice_balance, yes, &context);
+    }
 }
