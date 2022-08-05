@@ -36,6 +36,7 @@ pub struct Market {
     pub market: MarketData,
     pub collateral_token: CollateralToken,
     pub dao_account_id: AccountId,
+    pub staking_token_account_id: AccountId,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
     // Decimal fee to charge upon a bet
@@ -77,6 +78,7 @@ pub struct OutcomeToken {
 pub struct CollateralToken {
     pub id: AccountId,
     pub balance: WrappedBalance,
+    pub fee_balance: WrappedBalance,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
