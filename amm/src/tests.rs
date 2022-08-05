@@ -58,6 +58,7 @@ mod tests {
             staking_token_account_id(),
             LP_FEE,
             resolution_window,
+            6,
         );
 
         contract
@@ -738,5 +739,48 @@ mod tests {
             .build());
         let alice_balance = contract.balance_of(yes, alice());
         sell(&mut contract, alice(), alice_balance, yes, &context);
+    }
+
+    #[test]
+    fn test_on_ft_balance_of_callback() {
+        let mut context = setup_context();
+
+        let now = Utc::now();
+        testing_env!(context
+            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
+            .build());
+        let starts_at = now + Duration::days(5);
+        let ends_at = starts_at + Duration::days(10);
+        let resolution_window = ends_at + Duration::days(3);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
+
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+        );
+
+        publish(&mut contract, &context);
+
+        testing_env!(
+            context.build(),
+            near_sdk::VMConfig::test(),
+            near_sdk::RuntimeFeesConfig::test(),
+            Default::default(),
+            // 50%
+            vec![
+                // ft_balance_of
+                PromiseResult::Successful("5000000".to_string().into_bytes()),
+                // ft_total_supply
+                PromiseResult::Successful("10000000".to_string().into_bytes())
+            ],
+        );
+
+        contract.on_ft_balance_of_callback(221.0, alice());
     }
 }

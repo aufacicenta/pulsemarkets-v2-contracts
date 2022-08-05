@@ -16,6 +16,9 @@ pub use modifiers::*;
 pub mod outcome_token;
 pub use outcome_token::*;
 
+pub mod fees;
+pub use fees::*;
+
 pub mod ft_receiver;
 pub use ft_receiver::*;
 

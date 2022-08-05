@@ -23,6 +23,7 @@ impl Market {
         staking_token_account_id: AccountId,
         fee_ratio: WrappedBalance,
         resolution_window: Timestamp,
+        collateral_token_decimals: u8,
     ) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
@@ -36,6 +37,7 @@ impl Market {
                 id: collateral_token_account_id,
                 balance: 0.0,
                 fee_balance: 0.0,
+                decimals: collateral_token_decimals,
             },
             dao_account_id,
             staking_token_account_id,
@@ -44,6 +46,11 @@ impl Market {
             resolution_window,
             published_at: None,
             resolved_at: None,
+            fees: Fees {
+                staking_fees: LookupMap::new(StorageKeys::StakingFees),
+                market_creator_fees: LookupMap::new(StorageKeys::MarketCreatorFees),
+                market_publisher_fees: LookupMap::new(StorageKeys::MarketPublisherFees),
+            },
         }
     }
 
@@ -269,79 +276,6 @@ impl Market {
         self.burn_the_losers(outcome_id);
 
         self.resolved_at = Some(self.get_block_timestamp());
-    }
-
-    /**
-     * Lets fee payees claim their balance
-     *
-     * @notice only after market is resolved
-     *
-     * @returns WrappedBalance of fee proportion paid
-     */
-    #[payable]
-    pub fn claim_fees_resolved(&mut self) {
-        self.assert_is_resolved();
-
-        // @TODO fees for $PULSE stakers: 85%
-        // @TODO get balance_of $PULSE for env::account_signer_id() and check its weight to the general token supply
-        let ft_balance_of_promise = env::promise_create(
-            self.staking_token_account_id.clone(),
-            "ft_balance_of",
-            json!({
-                "account_id": env::signer_account_id(),
-            }),
-            0,
-            GAS_FT_BALANCE_OF,
-        );
-
-        let ft_metadata_promise = env::promise_create(
-            self.staking_token_account_id.clone(),
-            "ft_metadata",
-            json!({}),
-            0,
-            GAS_FT_METADATA,
-        );
-
-        let promises = env::promise_and(&[ft_balance_of_promise, ft_metadata_promise]);
-
-        let callback = env::promise_then(
-            promises,
-            env::current_account_id(),
-            "on_ft_balance_of_callback",
-            json!({
-                "amount": self.collateral_token.fee_balance,
-                "payee": env::signer_account_id(),
-            }),
-            0,
-            GAS_FT_METADATA_CALLBACK,
-        );
-
-        env::promise_return(callback)
-
-        // @TODO fees for market creator: 10%
-        // @TODO check if signer is market creator, then transfer
-
-        // @TODO fees for market publisher: 5%
-        // @TODO check if signer is market publisher, then transfer
-    }
-
-    /**
-     * Lets users claim proportional fees of an unresolved market
-     *
-     * @notice only is market was not resolved after resolution window
-     *
-     * @returns WrappedBalance of fee proportion paid
-     */
-    #[payable]
-    pub fn claim_fees_unresolved(&mut self) -> WrappedBalance {
-        if !self.is_resolution_window_expired() && self.is_resolved() {
-            env::panic_str("ERR_CANNOT_CLAIM_FEES_OF_RESOLVED_MARKET");
-        }
-
-        // @TODO let users claim their proportional fees
-        // @TODO iterate over all outcome token supplies for the user and get their cumulative weight
-
-        0.0
     }
 
     #[private]

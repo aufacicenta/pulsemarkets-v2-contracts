@@ -47,6 +47,8 @@ pub struct Market {
     pub resolved_at: Option<Timestamp>,
     // Time to free up the market
     pub resolution_window: Timestamp,
+    // Maps to check if fee has been paid for AccountId
+    pub fees: Fees,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -78,7 +80,15 @@ pub struct OutcomeToken {
 pub struct CollateralToken {
     pub id: AccountId,
     pub balance: WrappedBalance,
+    pub decimals: u8,
     pub fee_balance: WrappedBalance,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Fees {
+    pub staking_fees: LookupMap<AccountId, bool>,
+    pub market_creator_fees: LookupMap<AccountId, bool>,
+    pub market_publisher_fees: LookupMap<AccountId, bool>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
@@ -90,6 +100,9 @@ pub struct PriceHistory {
 #[derive(BorshStorageKey, BorshSerialize)]
 pub enum StorageKeys {
     OutcomeTokens,
+    StakingFees,
+    MarketCreatorFees,
+    MarketPublisherFees,
 }
 
 #[derive(Serialize, Deserialize)]
