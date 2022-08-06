@@ -1,7 +1,5 @@
 use near_sdk::serde_json::json;
-use near_sdk::{
-    env, log, near_bindgen, require, serde_json, AccountId, Balance, Promise, PromiseResult,
-};
+use near_sdk::{env, log, near_bindgen, require, serde_json, AccountId, Promise, PromiseResult};
 
 use crate::consts::*;
 use crate::storage::*;
@@ -45,12 +43,14 @@ impl Market {
 
                 let promises = env::promise_and(&[ft_balance_of_promise, ft_metadata_promise]);
 
+                let amount = self.collateral_token.fee_balance * 0.85;
+
                 let callback = env::promise_then(
                     promises,
                     env::current_account_id(),
-                    "on_ft_balance_of_callback",
+                    "on_claim_staking_fees_resolved_callback",
                     json!({
-                        "amount": self.collateral_token.fee_balance,
+                        "amount": amount,
                         "payee": env::signer_account_id(),
                     })
                     .to_string()
@@ -90,7 +90,11 @@ impl Market {
     }
 
     #[private]
-    pub fn on_ft_balance_of_callback(&mut self, amount: WrappedBalance, payee: AccountId) {
+    pub fn on_claim_staking_fees_resolved_callback(
+        &mut self,
+        amount: WrappedBalance,
+        payee: AccountId,
+    ) -> String {
         require!(env::promise_results_count() == 2);
 
         let ft_balance_of_result = match env::promise_result(0) {
@@ -98,30 +102,31 @@ impl Market {
             _ => env::panic_str("ERR_ON_FT_BALANCE_OF_CALLBACK_0"),
         };
 
-        let ft_balance_of: Balance = serde_json::from_slice(&ft_balance_of_result)
+        let ft_balance_of: WrappedBalance = serde_json::from_slice(&ft_balance_of_result)
             .expect("ERR_ON_FT_BALANCE_OF_CALLBACK_RESULT_0");
 
-        let supply_result = match env::promise_result(1) {
+        let ft_total_supply_result = match env::promise_result(1) {
             PromiseResult::Successful(result) => result,
             _ => env::panic_str("ERR_ON_FT_BALANCE_OF_CALLBACK_0"),
         };
 
-        let ft_total_supply: Balance =
-            serde_json::from_slice(&supply_result).expect("ERR_ON_FT_BALANCE_OF_CALLBACK_RESULT_1");
+        let ft_total_supply: WrappedBalance = serde_json::from_slice(&ft_total_supply_result)
+            .expect("ERR_ON_FT_BALANCE_OF_CALLBACK_RESULT_1");
 
         log!(
-            "on_ft_balance_of_callback ft_balance_of: {}, ft_total_supply: {}",
+            "on_claim_staking_fees_resolved_callback ft_balance_of: {}, ft_total_supply: {}, amount: {}, payee: {}",
             ft_balance_of,
             ft_total_supply,
+            amount,
+            payee,
         );
 
         let weight = ft_balance_of / ft_total_supply;
         let precision = self.get_precision();
-        let amount_payable =
-            &((amount * weight as WrappedBalance) * precision.parse::<WrappedBalance>().unwrap());
+        let amount_payable = &((amount * weight) * precision.parse::<WrappedBalance>().unwrap());
 
         log!(
-            "on_ft_balance_of_callback weight: {}, precision: {}, amount_payable: {}",
+            "on_claim_staking_fees_resolved_callback weight: {}, precision: {}, amount_payable: {}",
             weight,
             precision,
             amount_payable
@@ -142,7 +147,18 @@ impl Market {
 
         // @TODO callback of a failed transfer
 
-        self.fees.staking_fees.insert(&payee, &true);
+        self.fees
+            .staking_fees
+            .insert(&payee, &amount_payable.to_string());
+
+        return amount_payable.to_string();
+    }
+
+    pub fn get_claimed_staking_fees(&self, account_id: AccountId) -> String {
+        match self.fees.staking_fees.get(&account_id) {
+            Some(amount) => amount,
+            None => "0".to_string(),
+        }
     }
 
     fn get_precision(&self) -> String {

@@ -86,9 +86,9 @@ pub struct CollateralToken {
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Fees {
-    pub staking_fees: LookupMap<AccountId, bool>,
-    pub market_creator_fees: LookupMap<AccountId, bool>,
-    pub market_publisher_fees: LookupMap<AccountId, bool>,
+    pub staking_fees: LookupMap<AccountId, String>,
+    pub market_creator_fees: LookupMap<AccountId, String>,
+    pub market_publisher_fees: LookupMap<AccountId, String>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]

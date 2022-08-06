@@ -742,7 +742,7 @@ mod tests {
     }
 
     #[test]
-    fn test_on_ft_balance_of_callback() {
+    fn test_on_claim_staking_fees_resolved_callback() {
         let mut context = setup_context();
 
         let now = Utc::now();
@@ -781,6 +781,11 @@ mod tests {
             ],
         );
 
-        contract.on_ft_balance_of_callback(221.0, alice());
+        let amount_payable = contract.on_claim_staking_fees_resolved_callback(221.0, alice());
+
+        // (221 = 85% of total fees for $PULSE stakers) * (0.5 = alice.near weight of $PULSE total_supply) = 110.5,
+        // then convert to Collateral Token decimals precision
+        assert_eq!(amount_payable, "1105000000");
+        assert_eq!(contract.get_claimed_staking_fees(alice()), "1105000000");
     }
 }
