@@ -23,6 +23,7 @@ impl Market {
         staking_token_account_id: AccountId,
         fee_ratio: WrappedBalance,
         resolution_window: Timestamp,
+        claiming_window: Timestamp,
         collateral_token_decimals: u8,
     ) -> Self {
         if env::state_exists() {
@@ -50,6 +51,7 @@ impl Market {
                 staking_fees: LookupMap::new(StorageKeys::StakingFees),
                 market_creator_fees: LookupMap::new(StorageKeys::MarketCreatorFees),
                 market_publisher_fees: LookupMap::new(StorageKeys::MarketPublisherFees),
+                claiming_window,
             },
         }
     }

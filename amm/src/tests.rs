@@ -50,7 +50,11 @@ mod tests {
         context
     }
 
-    fn setup_contract(market: MarketData, resolution_window: Timestamp) -> Market {
+    fn setup_contract(
+        market: MarketData,
+        resolution_window: Timestamp,
+        claiming_window: Timestamp,
+    ) -> Market {
         let contract = Market::new(
             market,
             dao_account_id(),
@@ -58,6 +62,7 @@ mod tests {
             staking_token_account_id(),
             LP_FEE,
             resolution_window,
+            claiming_window,
             6,
         );
 
@@ -142,6 +147,7 @@ mod tests {
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
         let resolution_window = ends_at + Duration::hours(3);
+        let claiming_window = resolution_window + Duration::hours(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -153,6 +159,7 @@ mod tests {
         let mut contract: Market = setup_contract(
             market_data,
             resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
         );
 
         publish(&mut contract, &context);
@@ -177,6 +184,7 @@ mod tests {
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
         let resolution_window = ends_at + Duration::hours(3);
+        let claiming_window = resolution_window + Duration::hours(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -188,6 +196,7 @@ mod tests {
         let mut contract: Market = setup_contract(
             market_data,
             resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
         );
 
         publish(&mut contract, &context);
@@ -216,6 +225,7 @@ mod tests {
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
         let resolution_window = ends_at + Duration::days(3);
+        let claiming_window = resolution_window + Duration::hours(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -227,6 +237,7 @@ mod tests {
         let mut contract: Market = setup_contract(
             market_data,
             resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
         );
 
         publish(&mut contract, &context);
@@ -255,22 +266,38 @@ mod tests {
 
         let yes = 0;
 
-        let now = add_expires_at_nanos(0);
-        testing_env!(context.block_timestamp(now.try_into().unwrap()).build());
-        let starts_at = now * 2;
-        let ends_at = now * 3;
-        let resolution_window = now * 4;
+        let now = Utc::now();
+        testing_env!(context
+            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
+            .build());
+        let starts_at = now + Duration::days(5);
+        let ends_at = starts_at + Duration::days(10);
+        let resolution_window = ends_at + Duration::days(3);
+        let claiming_window = resolution_window + Duration::hours(3);
 
-        let market_data: MarketData =
-            create_market_data("a market description".to_string(), 2, starts_at, ends_at);
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
 
-        let mut contract: Market = setup_contract(market_data, resolution_window);
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
+        );
 
         // @TODO publish may also be made by a CT ft_on_transfer
         publish(&mut contract, &context);
 
         testing_env!(context
-            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.25)) as u64)
+            .block_timestamp(
+                (starts_at - Duration::days(4))
+                    .timestamp_nanos()
+                    .try_into()
+                    .unwrap()
+            )
             .build());
         buy(
             &mut contract,
@@ -281,7 +308,12 @@ mod tests {
         );
 
         testing_env!(context
-            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.5)) as u64)
+            .block_timestamp(
+                (starts_at - Duration::days(3))
+                    .timestamp_nanos()
+                    .try_into()
+                    .unwrap()
+            )
             .build());
         buy(
             &mut contract,
@@ -315,23 +347,39 @@ mod tests {
         let yes = 0;
         let no = 1;
 
-        let now = add_expires_at_nanos(0);
-        testing_env!(context.block_timestamp(now.try_into().unwrap()).build());
-        let starts_at = now * 2;
-        let ends_at = now * 3;
-        let resolution_window = now * 4;
+        let now = Utc::now();
+        testing_env!(context
+            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
+            .build());
+        let starts_at = now + Duration::days(5);
+        let ends_at = starts_at + Duration::days(10);
+        let resolution_window = ends_at + Duration::days(3);
+        let claiming_window = resolution_window + Duration::hours(3);
 
-        let market_data: MarketData =
-            create_market_data("a market description".to_string(), 2, starts_at, ends_at);
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            starts_at.timestamp_nanos().try_into().unwrap(),
+            ends_at.timestamp_nanos().try_into().unwrap(),
+        );
 
-        let mut contract: Market = setup_contract(market_data, resolution_window);
+        let mut contract: Market = setup_contract(
+            market_data,
+            resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
+        );
 
         // @TODO publish may also be made by a CT ft_on_transfer
         publish(&mut contract, &context);
 
         // boost the balance
         testing_env!(context
-            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.25)) as u64)
+            .block_timestamp(
+                (starts_at - Duration::days(4))
+                    .timestamp_nanos()
+                    .try_into()
+                    .unwrap()
+            )
             .build());
         buy(
             &mut contract,
@@ -343,7 +391,12 @@ mod tests {
 
         // boost the balance
         testing_env!(context
-            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.30)) as u64)
+            .block_timestamp(
+                (starts_at - Duration::days(3))
+                    .timestamp_nanos()
+                    .try_into()
+                    .unwrap()
+            )
             .build());
         buy(
             &mut contract,
@@ -355,7 +408,12 @@ mod tests {
 
         // boost the balance
         testing_env!(context
-            .block_timestamp((starts_at as f32 - (starts_at as f32 * 0.5)) as u64)
+            .block_timestamp(
+                (starts_at - Duration::days(2))
+                    .timestamp_nanos()
+                    .try_into()
+                    .unwrap()
+            )
             .build());
         buy(
             &mut contract,
@@ -406,6 +464,7 @@ mod tests {
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
         let resolution_window = ends_at + Duration::days(3);
+        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -417,6 +476,7 @@ mod tests {
         let mut contract: Market = setup_contract(
             market_data,
             resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
         );
 
         // @TODO publish may also be made by a CT ft_on_transfer
@@ -578,6 +638,7 @@ mod tests {
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
         let resolution_window = ends_at + Duration::days(3);
+        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -589,6 +650,7 @@ mod tests {
         let mut contract: Market = setup_contract(
             market_data,
             resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
         );
 
         // @TODO publish may also be made by a CT ft_on_transfer
@@ -625,6 +687,7 @@ mod tests {
         let starts_at = now - Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
         let resolution_window = ends_at + Duration::hours(3);
+        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -636,6 +699,7 @@ mod tests {
         let mut contract: Market = setup_contract(
             market_data,
             resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
         );
 
         publish(&mut contract, &context);
@@ -657,6 +721,7 @@ mod tests {
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
         let resolution_window = ends_at + Duration::hours(3);
+        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -668,6 +733,7 @@ mod tests {
         let mut contract: Market = setup_contract(
             market_data,
             resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
         );
 
         publish(&mut contract, &context);
@@ -705,6 +771,7 @@ mod tests {
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
         let resolution_window = ends_at + Duration::hours(3);
+        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -716,6 +783,7 @@ mod tests {
         let mut contract: Market = setup_contract(
             market_data,
             resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
         );
 
         publish(&mut contract, &context);
@@ -752,6 +820,7 @@ mod tests {
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
         let resolution_window = ends_at + Duration::days(3);
+        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -763,6 +832,7 @@ mod tests {
         let mut contract: Market = setup_contract(
             market_data,
             resolution_window.timestamp_nanos().try_into().unwrap(),
+            claiming_window.timestamp_nanos().try_into().unwrap(),
         );
 
         publish(&mut contract, &context);
