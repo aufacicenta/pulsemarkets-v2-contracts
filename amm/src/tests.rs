@@ -136,11 +136,6 @@ mod tests {
         }
     }
 
-    fn add_expires_at_nanos(offset: i64) -> i64 {
-        let now = Utc::now().timestamp_nanos();
-        (now + offset).into()
-    }
-
     #[test]
     fn test_publish_binary_market() {
         let mut context = setup_context();

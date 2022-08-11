@@ -87,6 +87,7 @@ impl Market {
 
         self.assert_price_constant();
         self.published_at = Some(self.get_block_timestamp());
+        self.market_publisher_account_id = Some(env::signer_account_id());
 
         let storage_deposit_promise = Promise::new(self.collateral_token.id.clone()).function_call(
             "storage_deposit".to_string(),
