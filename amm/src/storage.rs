@@ -37,6 +37,8 @@ pub struct Market {
     pub collateral_token: CollateralToken,
     pub dao_account_id: AccountId,
     pub staking_token_account_id: AccountId,
+    pub market_creator_account_id: AccountId,
+    pub market_publisher_account_id: Option<AccountId>,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
     // Decimal fee to charge upon a bet

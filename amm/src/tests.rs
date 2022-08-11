@@ -39,6 +39,10 @@ mod tests {
         AccountId::new_unchecked("staking_token_account_id.near".to_string())
     }
 
+    fn market_creator_account_id() -> AccountId {
+        AccountId::new_unchecked("market_creator_account_id.near".to_string())
+    }
+
     fn setup_context() -> VMContextBuilder {
         let mut context = VMContextBuilder::new();
         let now = Utc::now().timestamp_subsec_nanos();
@@ -60,6 +64,7 @@ mod tests {
             dao_account_id(),
             collateral_token_id(),
             staking_token_account_id(),
+            market_creator_account_id(),
             LP_FEE,
             resolution_window,
             claiming_window,
