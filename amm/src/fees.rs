@@ -119,6 +119,67 @@ impl Market {
     }
 
     /**
+     * Lets fee payees claim their balance
+     *
+     * @notice only after market is resolved
+     *
+     * @returns WrappedBalance of fee proportion paid
+     */
+    pub fn claim_market_publisher_fees_resolved(&mut self) {
+        self.assert_is_resolved();
+
+        let payee = env::signer_account_id();
+
+        match &self.market_publisher_account_id {
+            Some(account_id) => {
+                if payee != *account_id {
+                    env::panic_str("ERR_CLAIM_MARKET_PUBLISHER_FEES_RESOLVED_ACCOUNT_ID_MISTMATCH");
+                }
+
+                match self.fees.market_publisher_fees.get(&payee) {
+                    Some(_) => {
+                        env::panic_str("ERR_CLAIM_MARKET_PUBLISHER_FEES_RESOLVED_NO_FEES_TO_CLAIM")
+                    }
+                    None => {
+                        let amount = self.collateral_token.fee_balance * 0.05;
+                        let precision = self.get_precision();
+                        let amount_payable =
+                            &(amount * precision.parse::<WrappedBalance>().unwrap());
+
+                        let ft_transfer_promise = Promise::new(self.collateral_token.id.clone())
+                            .function_call(
+                                "ft_transfer".to_string(),
+                                json!({
+                                    "amount": amount_payable.to_string(),
+                                    "receiver_id": payee
+                                })
+                                .to_string()
+                                .into_bytes(),
+                                FT_TRANSFER_BOND,
+                                GAS_FT_TRANSFER,
+                            );
+
+                        let ft_transfer_callback_promise = Promise::new(env::current_account_id())
+                            .function_call(
+                                "on_claim_market_publisher_fees_resolved_callback".to_string(),
+                                json!({
+                                    "payee": payee,
+                                })
+                                .to_string()
+                                .into_bytes(),
+                                0,
+                                GAS_FT_TRANSFER_CALLBACK,
+                            );
+
+                        ft_transfer_promise.then(ft_transfer_callback_promise);
+                    }
+                };
+            }
+            None => env::panic_str("ERR_CLAIM_MARKET_PUBLISHER_FEES_ACCOUNT_ID_NOT_SET"),
+        }
+    }
+
+    /**
      * Lets users claim proportional fees of an unresolved market
      *
      * @notice only if market was not resolved after resolution window
@@ -222,6 +283,24 @@ impl Market {
 
     #[private]
     pub fn on_claim_market_creator_fees_resolved_callback(&mut self, payee: AccountId) -> String {
+        let ft_transfer_result = match env::promise_result(0) {
+            PromiseResult::Successful(result) => result,
+            // On error, the funds were transfered back to the sender
+            _ => env::panic_str("ERR_ON_FT_TRANSFER_CALLBACK"),
+        };
+
+        let amount_payable: WrappedBalance =
+            serde_json::from_slice(&ft_transfer_result).expect("ERR_ON_FT_TRANSFER");
+
+        self.fees
+            .market_creator_fees
+            .insert(&payee, &amount_payable.to_string());
+
+        return amount_payable.to_string();
+    }
+
+    #[private]
+    pub fn on_claim_market_publisher_fees_resolved_callback(&mut self, payee: AccountId) -> String {
         let ft_transfer_result = match env::promise_result(0) {
             PromiseResult::Successful(result) => result,
             // On error, the funds were transfered back to the sender

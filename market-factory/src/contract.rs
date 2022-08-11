@@ -33,11 +33,30 @@ impl MarketFactory {
             .parse()
             .unwrap();
 
+        let initFnArgs = [
+            Into::<Vec<u8>>::into(args)[..],
+            json!({ "market_creator_account_id": env::signer_account_id() })
+                .to_string()
+                .into_bytes()[..],
+        ]
+        .concat();
+
+        let initFnArgs: Vec<u8> = args.into().extend(
+            json!({ "market_creator_account_id": env::signer_account_id() })
+                .to_string()
+                .into_bytes(),
+        );
+
         let create_market_promise = Promise::new(market_account_id.clone())
             .create_account()
             .deploy_contract(MARKET_CODE.to_vec())
             .transfer(env::attached_deposit())
-            .function_call("new".to_string(), args.into(), 0, GAS_FOR_CREATE_MARKET);
+            .function_call(
+                "new".to_string(),
+                initFnArgs.into(),
+                0,
+                GAS_FOR_CREATE_MARKET,
+            );
 
         // @TODO if this promise fails, the funds (attached_deposit) are not returned to the signer
 
