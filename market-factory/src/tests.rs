@@ -18,10 +18,7 @@ mod tests {
     }
 
     fn setup_contract() -> MarketFactory {
-        let contract = MarketFactory::new(
-            AccountId::new_unchecked("escrowfactory.near".to_string()),
-            AccountId::new_unchecked("oracle-dao.near".to_string()),
-        );
+        let contract = MarketFactory::new();
         contract
     }
 
