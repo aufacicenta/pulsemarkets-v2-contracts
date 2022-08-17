@@ -1,6 +1,9 @@
 use near_sdk::{
-    collections::UnorderedSet, env, json_types::Base64VecU8, near_bindgen,
-    serde_json, serde_json::{json, Value},
+    collections::UnorderedSet,
+    env,
+    json_types::Base64VecU8,
+    near_bindgen, serde_json,
+    serde_json::{json, Value},
     AccountId, Promise,
 };
 use std::default::Default;
@@ -37,8 +40,8 @@ impl MarketFactory {
         let mut init_args: Value = serde_json::from_slice(&args.0.as_slice()).unwrap();
 
         init_args.as_object_mut().unwrap().insert(
-            "market_creator_account_id".to_string(), 
-            Value::String(env::signer_account_id().to_string())
+            "market_creator_account_id".to_string(),
+            Value::String(env::signer_account_id().to_string()),
         );
 
         let create_market_promise = Promise::new(market_account_id.clone())

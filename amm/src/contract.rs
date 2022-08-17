@@ -25,6 +25,7 @@ impl Market {
         fee_ratio: WrappedBalance,
         resolution_window: Timestamp,
         claiming_window: Timestamp,
+        // @TODO collateral_token_decimals should be set by a cross-contract call to ft_metadata, otherwise the system can be tamed
         collateral_token_decimals: u8,
     ) -> Self {
         if env::state_exists() {
