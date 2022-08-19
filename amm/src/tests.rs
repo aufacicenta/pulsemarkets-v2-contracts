@@ -115,8 +115,18 @@ mod tests {
         *collateral_token_balance -= balance * c.get_fee_ratio();
     }
 
-    fn publish(c: &mut Market, _context: &VMContextBuilder) {
+    fn publish(c: &mut Market, context: &VMContextBuilder) {
         c.publish();
+
+        testing_env!(
+            context.build(),
+            near_sdk::VMConfig::test(),
+            near_sdk::RuntimeFeesConfig::test(),
+            Default::default(),
+            vec![ PromiseResult::Successful(vec![]) ],
+        );
+
+        c.on_create_proposals_callback();
     }
 
     fn create_market_data(

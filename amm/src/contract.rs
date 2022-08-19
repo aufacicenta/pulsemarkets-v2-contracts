@@ -73,41 +73,54 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn publish(&mut self) {
+    pub fn publish(&mut self) -> Promise {
         self.assert_is_not_published();
         self.assert_in_stand_by();
 
         let mut outcome_id = 0;
         let options = &self.market.options.clone();
+        let mut promise: Promise = Promise::new(self.dao_account_id.clone());
 
         for outcome in options {
-            self.create_outcome_proposal(env::current_account_id(), outcome_id, &outcome);
-            self.create_outcome_token(outcome_id);
+            let args = Base64VecU8(json!({ "outcome_id": outcome_id }).to_string().into_bytes());
+
+            promise = promise.function_call(
+                "add_proposal".to_string(),
+                json!({
+                    "proposal": {
+                        "description": format!("{}\nOutcome: {}$$$$$$$$ProposeCustomFunctionCall",
+                            self.market.description,
+                            outcome),
+                        "kind": {
+                            "FunctionCall": {
+                                "receiver_id": env::current_account_id(),
+                                "actions": [{
+                                    "args": args,
+                                    "deposit": "0", // @TODO
+                                    "gas": "150000000000000", // @TODO
+                                    "method_name": "resolve",
+                                }]
+                            }
+                        }
+                    }
+                })
+                .to_string()
+                .into_bytes(),
+                BALANCE_PROPOSAL_BOND,
+                GAS_CREATE_DAO_PROPOSAL,
+            );
+
             outcome_id += 1;
         }
 
-        self.assert_price_constant();
-        self.published_at = Some(self.get_block_timestamp());
-        self.market_publisher_account_id = Some(env::signer_account_id());
-
-        let storage_deposit_promise = Promise::new(self.collateral_token.id.clone()).function_call(
-            "storage_deposit".to_string(),
-            json!({ "account_id": env::current_account_id() })
-                .to_string()
-                .into_bytes(),
-            STORAGE_DEPOSIT_BOND,
-            GAS_STORAGE_DEPOSIT,
+        let callback = Promise::new(env::current_account_id()).function_call(
+            "on_create_proposals_callback".to_string(),
+            json!({}).to_string().into_bytes(),
+            0,
+            GAS_CREATE_DAO_PROPOSAL_CALLBACK,
         );
 
-        let storage_deposit_callback_promise = Promise::new(env::current_account_id())
-            .function_call(
-                "on_storage_deposit_callback".to_string(),
-                json!({}).to_string().into_bytes(),
-                0,
-                GAS_STORAGE_DEPOSIT_CALLBACK,
-            );
-
-        storage_deposit_promise.then(storage_deposit_callback_promise);
+        promise.then(callback)
     }
 
     /**
@@ -332,51 +345,6 @@ impl Market {
 }
 
 impl Market {
-    fn create_outcome_proposal(
-        &self,
-        receiver_id: AccountId,
-        outcome_id: OutcomeId,
-        outcome: &String,
-    ) {
-        let args = Base64VecU8(json!({ "outcome_id": outcome_id }).to_string().into_bytes());
-
-        Promise::new(self.dao_account_id.clone()).function_call(
-            "add_proposal".to_string(),
-            json!({
-                "proposal": {
-                    "description": format!("{}\nOutcome: {}$$$$$$$$ProposeCustomFunctionCall",
-                        self.market.description,
-                        outcome),
-                    "kind": {
-                        "FunctionCall": {
-                            "receiver_id": receiver_id,
-                            "actions": [{
-                                "args": args,
-                                "deposit": "0", // @TODO
-                                "gas": "150000000000000", // @TODO
-                                "method_name": "resolve",
-                            }]
-                        }
-                    }
-                }
-            })
-            .to_string()
-            .into_bytes(),
-            BALANCE_PROPOSAL_BOND,
-            GAS_CREATE_DAO_PROPOSAL,
-        );
-    }
-
-    fn create_outcome_token(&mut self, outcome_id: OutcomeId) {
-        let price = self.get_initial_outcome_token_price();
-        let outcome_token = OutcomeToken::new(outcome_id, 0.0, price);
-        self.outcome_tokens.insert(&outcome_id, &outcome_token);
-    }
-
-    fn get_initial_outcome_token_price(&self) -> Price {
-        1 as Price / self.market.options.len() as Price
-    }
-
     fn burn_the_losers(&mut self, outcome_id: OutcomeId) {
         for id in 0..self.market.options.len() {
             let mut outcome_token = self.get_outcome_token(id as OutcomeId);
