@@ -47,6 +47,7 @@ impl Market {
             market_creator_account_id,
             market_publisher_account_id: None,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
+            // @TODO move fee_ratio to Fees
             fee_ratio,
             resolution_window,
             published_at: None,
@@ -206,6 +207,8 @@ impl Market {
      */
     #[payable]
     pub fn sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
+        // @TODO limit selling only after resolution
+        // @TODO if there are participants only in 1 outcome, allow to claim funds after resolution, otherwise funds will be locked
         self.assert_is_published();
 
         if amount > self.balance_of(outcome_id, env::signer_account_id()) {
