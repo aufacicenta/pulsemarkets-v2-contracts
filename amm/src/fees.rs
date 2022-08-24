@@ -41,7 +41,7 @@ impl Market {
 
                 let promises = env::promise_and(&[ft_balance_of_promise, ft_total_supply_promise]);
 
-                let amount = self.collateral_token.fee_balance * 0.85;
+                let amount = self.collateral_token.fee_balance * 0.15;
 
                 let callback = env::promise_then(
                     promises,
@@ -84,7 +84,7 @@ impl Market {
         match self.fees.market_creator_fees.get(&payee) {
             Some(_) => env::panic_str("ERR_CLAIM_MARKET_CREATOR_FEES_RESOLVED_NO_FEES_TO_CLAIM"),
             None => {
-                let amount = self.collateral_token.fee_balance * 0.10;
+                let amount = self.collateral_token.fee_balance * 0.80;
                 let precision = self.get_precision();
                 let amount_payable = &(amount * precision.parse::<WrappedBalance>().unwrap());
 
