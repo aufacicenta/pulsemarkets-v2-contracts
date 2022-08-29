@@ -35,10 +35,6 @@ mod tests {
         AccountId::new_unchecked("collateral_token_id.near".to_string())
     }
 
-    fn staking_token_account_id() -> AccountId {
-        AccountId::new_unchecked("staking_token_account_id.near".to_string())
-    }
-
     fn market_creator_account_id() -> AccountId {
         AccountId::new_unchecked("market_creator_account_id.near".to_string())
     }
@@ -63,7 +59,6 @@ mod tests {
             market,
             dao_account_id(),
             collateral_token_id(),
-            staking_token_account_id(),
             market_creator_account_id(),
             LP_FEE,
             resolution_window,
@@ -123,7 +118,7 @@ mod tests {
             near_sdk::VMConfig::test(),
             near_sdk::RuntimeFeesConfig::test(),
             Default::default(),
-            vec![ PromiseResult::Successful(vec![]) ],
+            vec![PromiseResult::Successful(vec![])],
         );
 
         c.on_create_proposals_callback();

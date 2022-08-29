@@ -20,7 +20,6 @@ impl Market {
         market: MarketData,
         dao_account_id: AccountId,
         collateral_token_account_id: AccountId,
-        staking_token_account_id: AccountId,
         market_creator_account_id: AccountId,
         fee_ratio: WrappedBalance,
         resolution_window: Timestamp,
@@ -43,7 +42,8 @@ impl Market {
                 decimals: collateral_token_decimals,
             },
             dao_account_id,
-            staking_token_account_id,
+            // @TODO chance to testnet address on release
+            staking_token_account_id: AccountId::new_unchecked("pulse.fakes.testnet".to_string()),
             market_creator_account_id,
             market_publisher_account_id: None,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
