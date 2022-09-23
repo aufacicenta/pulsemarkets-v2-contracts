@@ -39,6 +39,14 @@ mod tests {
         AccountId::new_unchecked("market_creator_account_id.near".to_string())
     }
 
+    fn date(date: chrono::DateTime<chrono::Utc>) -> i64 {
+        date.timestamp_nanos().try_into().unwrap()
+    }
+
+    fn block_timestamp(date: chrono::DateTime<chrono::Utc>) -> u64 {
+        date.timestamp_nanos().try_into().unwrap()
+    }
+
     fn setup_context() -> VMContextBuilder {
         let mut context = VMContextBuilder::new();
         let now = Utc::now().timestamp_subsec_nanos();
@@ -146,9 +154,7 @@ mod tests {
         let mut context = setup_context();
 
         let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
         let resolution_window = ends_at + Duration::hours(3);
@@ -157,15 +163,12 @@ mod tests {
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
             2,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
+            date(starts_at),
+            date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
+        let mut contract: Market =
+            setup_contract(market_data, date(resolution_window), date(claiming_window));
 
         publish(&mut contract, &context);
 
@@ -183,9 +186,7 @@ mod tests {
         let mut context = setup_context();
 
         let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
         let resolution_window = ends_at + Duration::hours(3);
@@ -194,15 +195,12 @@ mod tests {
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
             3,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
+            date(starts_at),
+            date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
+        let mut contract: Market =
+            setup_contract(market_data, date(resolution_window), date(claiming_window));
 
         publish(&mut contract, &context);
 
@@ -224,9 +222,7 @@ mod tests {
         let mut context = setup_context();
 
         let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
         let resolution_window = ends_at + Duration::days(3);
@@ -235,15 +231,12 @@ mod tests {
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
             4,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
+            date(starts_at),
+            date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
+        let mut contract: Market =
+            setup_contract(market_data, date(resolution_window), date(claiming_window));
 
         publish(&mut contract, &context);
 
@@ -264,196 +257,6 @@ mod tests {
     }
 
     #[test]
-    fn test_single_trade_binary_unresolved() {
-        let mut context = setup_context();
-
-        let mut collateral_token_balance: WrappedBalance = 0.0;
-
-        let yes = 0;
-
-        let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
-        let starts_at = now + Duration::days(5);
-        let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-        let claiming_window = resolution_window + Duration::hours(3);
-
-        let market_data: MarketData = create_market_data(
-            "a market description".to_string(),
-            2,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
-        );
-
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
-
-        // @TODO publish may also be made by a CT ft_on_transfer
-        publish(&mut contract, &context);
-
-        testing_env!(context
-            .block_timestamp(
-                (starts_at - Duration::days(4))
-                    .timestamp_nanos()
-                    .try_into()
-                    .unwrap()
-            )
-            .build());
-        buy(
-            &mut contract,
-            &mut collateral_token_balance,
-            alice(),
-            100.0,
-            yes,
-        );
-
-        testing_env!(context
-            .block_timestamp(
-                (starts_at - Duration::days(3))
-                    .timestamp_nanos()
-                    .try_into()
-                    .unwrap()
-            )
-            .build());
-        buy(
-            &mut contract,
-            &mut collateral_token_balance,
-            alice(),
-            100.0,
-            yes,
-        );
-
-        assert_eq!(collateral_token_balance, 200.0);
-
-        // alice sells all her OT balance while the event is ongoing
-        let mut alice_balance = contract.balance_of(yes, alice());
-        testing_env!(context.signer_account_id(alice()).build());
-        sell(&mut contract, alice(), alice_balance, yes, &context);
-
-        let outcome_token_yes = contract.get_outcome_token(yes);
-        alice_balance = contract.balance_of(yes, alice());
-        assert_eq!(alice_balance, 0.0);
-
-        assert_eq!(outcome_token_yes.total_supply(), 0.0);
-        assert_eq!(contract.get_collateral_token_metadata().balance, 0.0);
-    }
-
-    #[test]
-    fn test_multiple_trade_binary_unresolved() {
-        let mut context = setup_context();
-
-        let mut collateral_token_balance: WrappedBalance = 0.0;
-
-        let yes = 0;
-        let no = 1;
-
-        let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
-        let starts_at = now + Duration::days(5);
-        let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-        let claiming_window = resolution_window + Duration::hours(3);
-
-        let market_data: MarketData = create_market_data(
-            "a market description".to_string(),
-            2,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
-        );
-
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
-
-        // @TODO publish may also be made by a CT ft_on_transfer
-        publish(&mut contract, &context);
-
-        // boost the balance
-        testing_env!(context
-            .block_timestamp(
-                (starts_at - Duration::days(4))
-                    .timestamp_nanos()
-                    .try_into()
-                    .unwrap()
-            )
-            .build());
-        buy(
-            &mut contract,
-            &mut collateral_token_balance,
-            alice(),
-            100.0,
-            yes,
-        );
-
-        // boost the balance
-        testing_env!(context
-            .block_timestamp(
-                (starts_at - Duration::days(3))
-                    .timestamp_nanos()
-                    .try_into()
-                    .unwrap()
-            )
-            .build());
-        buy(
-            &mut contract,
-            &mut collateral_token_balance,
-            bob(),
-            100.0,
-            no,
-        );
-
-        // boost the balance
-        testing_env!(context
-            .block_timestamp(
-                (starts_at - Duration::days(2))
-                    .timestamp_nanos()
-                    .try_into()
-                    .unwrap()
-            )
-            .build());
-        buy(
-            &mut contract,
-            &mut collateral_token_balance,
-            alice(),
-            100.0,
-            yes,
-        );
-
-        assert_eq!(collateral_token_balance, 300.0);
-
-        // alice sells all her OT balance while the event is ongoing
-        let alice_balance = contract.balance_of(yes, alice());
-        testing_env!(context.signer_account_id(alice()).build());
-        sell(&mut contract, alice(), alice_balance, yes, &context);
-
-        let outcome_token_yes = contract.get_outcome_token(yes);
-        let alice_balance = contract.balance_of(yes, alice());
-        assert_eq!(alice_balance, 0.0);
-        assert_eq!(outcome_token_yes.total_supply(), 0.0);
-
-        // bob sells all her OT balance while the event is ongoing
-        let bob_balance = contract.balance_of(no, bob());
-        testing_env!(context.signer_account_id(bob()).build());
-        sell(&mut contract, bob(), bob_balance, no, &context);
-
-        let outcome_token_no = contract.get_outcome_token(no);
-        let bob_balance = contract.balance_of(no, bob());
-        assert_eq!(bob_balance, 0.0);
-        assert_eq!(outcome_token_no.total_supply(), 0.0);
-
-        assert_eq!(contract.get_collateral_token_metadata().balance, 0.0);
-    }
-
-    #[test]
     fn test_binary_market() {
         let mut context = setup_context();
 
@@ -463,9 +266,7 @@ mod tests {
         let no = 1;
 
         let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
         let resolution_window = ends_at + Duration::days(3);
@@ -474,15 +275,12 @@ mod tests {
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
             2,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
+            date(starts_at),
+            date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
+        let mut contract: Market =
+            setup_contract(market_data, date(resolution_window), date(claiming_window));
 
         // @TODO publish may also be made by a CT ft_on_transfer
         publish(&mut contract, &context);
@@ -574,31 +372,26 @@ mod tests {
 
         assert_eq!(contract.get_collateral_token_metadata().balance, 1300.0);
 
-        // alice sells all her OT balance while the event is ongoing
-        let alice_balance = contract.balance_of(yes, alice());
-        testing_env!(context.signer_account_id(alice()).build());
-        sell(&mut contract, alice(), alice_balance, yes, &context);
-        let alice_balance = contract.balance_of(yes, alice());
-        assert_eq!(alice_balance, 0.0);
-
-        // gus sells his full OT balance while the event is ongoing
-        let gus_balance = contract.balance_of(no, gus());
-        testing_env!(context.signer_account_id(gus()).build());
-        sell(&mut contract, gus(), gus_balance, no, &context);
-        let gus_balance = contract.balance_of(no, gus());
-        assert_eq!(gus_balance, 0.0);
-
         // Event is over. Resolution window is open
         let now = resolution_window - Duration::days(1);
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
 
         // Resolve the market: Burn the losers
         testing_env!(context.signer_account_id(dao_account_id()).build());
         resolve(&mut contract, &mut collateral_token_balance, yes);
         let outcome_token_no = contract.get_outcome_token(no);
         assert_eq!(outcome_token_no.is_active(), false);
+
+        // Resolution window is due
+        let now = resolution_window + Duration::days(1);
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
+
+        // alice sells all her OT balance after the market is resolved
+        let alice_balance = contract.balance_of(yes, alice());
+        testing_env!(context.signer_account_id(alice()).build());
+        sell(&mut contract, alice(), alice_balance, yes, &context);
+        let alice_balance = contract.balance_of(yes, alice());
+        assert_eq!(alice_balance, 0.0);
 
         // bob sells his OT balance after the market is resolved. Claim earnings!!
         let bob_balance = contract.balance_of(yes, bob());
@@ -637,9 +430,7 @@ mod tests {
         let outcome_4 = 3;
 
         let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
         let resolution_window = ends_at + Duration::days(3);
@@ -648,15 +439,12 @@ mod tests {
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
             4,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
+            date(starts_at),
+            date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
+        let mut contract: Market =
+            setup_contract(market_data, date(resolution_window), date(claiming_window));
 
         // @TODO publish may also be made by a CT ft_on_transfer
         publish(&mut contract, &context);
@@ -686,9 +474,7 @@ mod tests {
         let mut context = setup_context();
 
         let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now - Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
         let resolution_window = ends_at + Duration::hours(3);
@@ -697,15 +483,12 @@ mod tests {
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
             2,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
+            date(starts_at),
+            date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
+        let mut contract: Market =
+            setup_contract(market_data, date(resolution_window), date(claiming_window));
 
         publish(&mut contract, &context);
     }
@@ -720,9 +503,7 @@ mod tests {
         let yes = 0;
 
         let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
         let resolution_window = ends_at + Duration::hours(3);
@@ -731,15 +512,12 @@ mod tests {
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
             2,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
+            date(starts_at),
+            date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
+        let mut contract: Market =
+            setup_contract(market_data, date(resolution_window), date(claiming_window));
 
         publish(&mut contract, &context);
 
@@ -761,7 +539,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "ERR_SELL_MARKET_IS_CLOSED_FOR_SELLS_UNTIL_RESOLUTION")]
+    #[should_panic(expected = "ERR_MARKET_NOT_RESOLVED")]
     fn test_sell_error_if_event_is_ongoing() {
         let mut context = setup_context();
 
@@ -770,9 +548,7 @@ mod tests {
         let yes = 0;
 
         let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
         let resolution_window = ends_at + Duration::hours(3);
@@ -781,15 +557,12 @@ mod tests {
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
             2,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
+            date(starts_at),
+            date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
+        let mut contract: Market =
+            setup_contract(market_data, date(resolution_window), date(claiming_window));
 
         publish(&mut contract, &context);
 
@@ -815,13 +588,62 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "ERR_MARKET_IS_UNDER_RESOLUTION")]
+    fn test_sell_error_if_market_is_under_resolution() {
+        let mut context = setup_context();
+
+        let mut collateral_token_balance: WrappedBalance = 0.0;
+
+        let yes = 0;
+
+        let now = Utc::now();
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
+        let starts_at = now + Duration::hours(1);
+        let ends_at = starts_at + Duration::hours(1);
+        let resolution_window = ends_at + Duration::hours(3);
+        let claiming_window = resolution_window + Duration::days(3);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            date(starts_at),
+            date(ends_at),
+        );
+
+        let mut contract: Market =
+            setup_contract(market_data, date(resolution_window), date(claiming_window));
+
+        publish(&mut contract, &context);
+
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            400.0,
+            yes,
+        );
+
+        // Event is over. Resolution window is open
+        let now = resolution_window - Duration::hours(1);
+        testing_env!(context
+            .block_timestamp(block_timestamp(now))
+            .signer_account_id(alice())
+            .build());
+
+        let alice_balance = contract.balance_of(yes, alice());
+        sell(&mut contract, alice(), alice_balance, yes, &context);
+
+        // Resolve the market: Burn the losers
+        // testing_env!(context.signer_account_id(dao_account_id()).build());
+        // resolve(&mut contract, &mut collateral_token_balance, yes);
+    }
+
+    #[test]
     fn test_on_claim_staking_fees_resolved_callback() {
         let mut context = setup_context();
 
         let now = Utc::now();
-        testing_env!(context
-            .block_timestamp(now.timestamp_nanos().try_into().unwrap())
-            .build());
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
         let resolution_window = ends_at + Duration::days(3);
@@ -830,15 +652,12 @@ mod tests {
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
             2,
-            starts_at.timestamp_nanos().try_into().unwrap(),
-            ends_at.timestamp_nanos().try_into().unwrap(),
+            date(starts_at),
+            date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(
-            market_data,
-            resolution_window.timestamp_nanos().try_into().unwrap(),
-            claiming_window.timestamp_nanos().try_into().unwrap(),
-        );
+        let mut contract: Market =
+            setup_contract(market_data, date(resolution_window), date(claiming_window));
 
         publish(&mut contract, &context);
 

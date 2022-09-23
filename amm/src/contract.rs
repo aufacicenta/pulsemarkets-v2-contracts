@@ -207,20 +207,13 @@ impl Market {
      */
     #[payable]
     pub fn sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
-        // @TODO limit selling only after resolution
         // @TODO if there are participants only in 1 outcome, allow to claim funds after resolution, otherwise funds will be locked
         self.assert_is_published();
+        self.assert_is_not_under_resolution();
+        self.assert_is_resolved();
 
         if amount > self.balance_of(outcome_id, env::signer_account_id()) {
             env::panic_str("ERR_SELL_AMOUNT_GREATER_THAN_BALANCE");
-        }
-
-        if !self.is_resolved() {
-            if self.is_closed() && !self.is_over() {
-                env::panic_str("ERR_SELL_MARKET_IS_CLOSED_FOR_SELLS_UNTIL_RESOLUTION");
-            }
-
-            self.assert_is_not_under_resolution();
         }
 
         let outcome_token = self.get_outcome_token(outcome_id);
