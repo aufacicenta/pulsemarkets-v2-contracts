@@ -36,6 +36,9 @@ pub struct Market {
     pub market: MarketData,
     pub collateral_token: CollateralToken,
     pub dao_account_id: AccountId,
+    pub staking_token_account_id: AccountId,
+    pub market_creator_account_id: AccountId,
+    pub market_publisher_account_id: Option<AccountId>,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
     // Decimal fee to charge upon a bet
@@ -46,6 +49,9 @@ pub struct Market {
     pub resolved_at: Option<Timestamp>,
     // Time to free up the market
     pub resolution_window: Timestamp,
+    // Time to free up the market
+    // Maps to check if fee has been paid for AccountId
+    pub fees: Fees,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -77,6 +83,16 @@ pub struct OutcomeToken {
 pub struct CollateralToken {
     pub id: AccountId,
     pub balance: WrappedBalance,
+    pub decimals: u8,
+    pub fee_balance: WrappedBalance,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Fees {
+    pub staking_fees: LookupMap<AccountId, String>,
+    pub market_creator_fees: LookupMap<AccountId, String>,
+    pub market_publisher_fees: LookupMap<AccountId, String>,
+    pub claiming_window: Timestamp,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
@@ -88,6 +104,9 @@ pub struct PriceHistory {
 #[derive(BorshStorageKey, BorshSerialize)]
 pub enum StorageKeys {
     OutcomeTokens,
+    StakingFees,
+    MarketCreatorFees,
+    MarketPublisherFees,
 }
 
 #[derive(Serialize, Deserialize)]

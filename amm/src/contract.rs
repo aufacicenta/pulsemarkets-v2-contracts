@@ -20,8 +20,12 @@ impl Market {
         market: MarketData,
         dao_account_id: AccountId,
         collateral_token_account_id: AccountId,
+        market_creator_account_id: AccountId,
         fee_ratio: WrappedBalance,
         resolution_window: Timestamp,
+        claiming_window: Timestamp,
+        // @TODO collateral_token_decimals should be set by a cross-contract call to ft_metadata, otherwise the system can be tamed
+        collateral_token_decimals: u8,
     ) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
@@ -34,13 +38,26 @@ impl Market {
             collateral_token: CollateralToken {
                 id: collateral_token_account_id,
                 balance: 0.0,
+                fee_balance: 0.0,
+                decimals: collateral_token_decimals,
             },
             dao_account_id,
+            // @TODO chance to testnet address on release
+            staking_token_account_id: AccountId::new_unchecked("pulse.fakes.testnet".to_string()),
+            market_creator_account_id,
+            market_publisher_account_id: None,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
+            // @TODO move fee_ratio to Fees
             fee_ratio,
             resolution_window,
             published_at: None,
             resolved_at: None,
+            fees: Fees {
+                staking_fees: LookupMap::new(StorageKeys::StakingFees),
+                market_creator_fees: LookupMap::new(StorageKeys::MarketCreatorFees),
+                market_publisher_fees: LookupMap::new(StorageKeys::MarketPublisherFees),
+                claiming_window,
+            },
         }
     }
 
@@ -57,40 +74,54 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn publish(&mut self) {
+    pub fn publish(&mut self) -> Promise {
         self.assert_is_not_published();
         self.assert_in_stand_by();
 
         let mut outcome_id = 0;
         let options = &self.market.options.clone();
+        let mut promise: Promise = Promise::new(self.dao_account_id.clone());
 
         for outcome in options {
-            self.create_outcome_proposal(env::current_account_id(), outcome_id, &outcome);
-            self.create_outcome_token(outcome_id);
+            let args = Base64VecU8(json!({ "outcome_id": outcome_id }).to_string().into_bytes());
+
+            promise = promise.function_call(
+                "add_proposal".to_string(),
+                json!({
+                    "proposal": {
+                        "description": format!("{}\nOutcome: {}$$$$$$$$ProposeCustomFunctionCall",
+                            self.market.description,
+                            outcome),
+                        "kind": {
+                            "FunctionCall": {
+                                "receiver_id": env::current_account_id(),
+                                "actions": [{
+                                    "args": args,
+                                    "deposit": "0", // @TODO
+                                    "gas": "150000000000000", // @TODO
+                                    "method_name": "resolve",
+                                }]
+                            }
+                        }
+                    }
+                })
+                .to_string()
+                .into_bytes(),
+                BALANCE_PROPOSAL_BOND,
+                GAS_CREATE_DAO_PROPOSAL,
+            );
+
             outcome_id += 1;
         }
 
-        self.assert_price_constant();
-        self.published_at = Some(self.get_block_timestamp());
-
-        let storage_deposit_promise = Promise::new(self.collateral_token.id.clone()).function_call(
-            "storage_deposit".to_string(),
-            json!({ "account_id": env::current_account_id() })
-                .to_string()
-                .into_bytes(),
-            STORAGE_DEPOSIT_BOND,
-            GAS_STORAGE_DEPOSIT,
+        let callback = Promise::new(env::current_account_id()).function_call(
+            "on_create_proposals_callback".to_string(),
+            json!({}).to_string().into_bytes(),
+            0,
+            GAS_CREATE_DAO_PROPOSAL_CALLBACK,
         );
 
-        let storage_deposit_callback_promise = Promise::new(env::current_account_id())
-            .function_call(
-                "on_storage_deposit_callback".to_string(),
-                json!({}).to_string().into_bytes(),
-                0,
-                GAS_STORAGE_DEPOSIT_CALLBACK,
-            );
-
-        storage_deposit_promise.then(storage_deposit_callback_promise);
+        promise.then(callback)
     }
 
     /**
@@ -143,6 +174,7 @@ impl Market {
 
         outcome_token.mint(&sender_id, amount_mintable);
         self.update_ct_balance(amount);
+        self.update_ct_fee_balance(fee);
 
         self.outcome_tokens
             .insert(&payload.outcome_id, &outcome_token);
@@ -175,18 +207,13 @@ impl Market {
      */
     #[payable]
     pub fn sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
+        // @TODO if there are participants only in 1 outcome, allow to claim funds after resolution, otherwise funds will be locked
         self.assert_is_published();
+        self.assert_is_not_under_resolution();
+        self.assert_is_resolved();
 
         if amount > self.balance_of(outcome_id, env::signer_account_id()) {
             env::panic_str("ERR_SELL_AMOUNT_GREATER_THAN_BALANCE");
-        }
-
-        if !self.is_resolved() {
-            if self.is_closed() && !self.is_over() {
-                env::panic_str("ERR_SELL_MARKET_IS_CLOSED_FOR_SELLS_UNTIL_RESOLUTION");
-            }
-
-            self.assert_is_not_under_resolution();
         }
 
         let outcome_token = self.get_outcome_token(outcome_id);
@@ -212,7 +239,8 @@ impl Market {
             "ft_transfer".to_string(),
             json!({
                 "amount": amount_payable.to_string(),
-                "receiver_id": payee })
+                "receiver_id": payee
+            })
             .to_string()
             .into_bytes(),
             FT_TRANSFER_BOND,
@@ -261,10 +289,6 @@ impl Market {
         // Redeem is no longer possible? — Redeem is possible, but prices stay at their latest value
         self.assert_is_resolution_window_open();
 
-        // @TODO distribute fee. Only when market is resolved?
-        // - 95% goes to $PULSE stakers
-        // - 5% goes to the user who created the market
-
         self.burn_the_losers(outcome_id);
 
         self.resolved_at = Some(self.get_block_timestamp());
@@ -308,54 +332,15 @@ impl Market {
         self.collateral_token.balance += amount;
         self.collateral_token.balance
     }
+
+    #[private]
+    pub fn update_ct_fee_balance(&mut self, amount: WrappedBalance) -> WrappedBalance {
+        self.collateral_token.fee_balance += amount;
+        self.collateral_token.fee_balance
+    }
 }
 
 impl Market {
-    fn create_outcome_proposal(
-        &self,
-        receiver_id: AccountId,
-        outcome_id: OutcomeId,
-        outcome: &String,
-    ) {
-        let args = Base64VecU8(json!({ "outcome_id": outcome_id }).to_string().into_bytes());
-
-        Promise::new(self.dao_account_id.clone()).function_call(
-            "add_proposal".to_string(),
-            json!({
-                "proposal": {
-                    "description": format!("{}\nOutcome: {}$$$$$$$$ProposeCustomFunctionCall",
-                        self.market.description,
-                        outcome),
-                    "kind": {
-                        "FunctionCall": {
-                            "receiver_id": receiver_id,
-                            "actions": [{
-                                "args": args,
-                                "deposit": "0", // @TODO
-                                "gas": "150000000000000", // @TODO
-                                "method_name": "resolve",
-                            }]
-                        }
-                    }
-                }
-            })
-            .to_string()
-            .into_bytes(),
-            BALANCE_PROPOSAL_BOND,
-            GAS_CREATE_DAO_PROPOSAL,
-        );
-    }
-
-    fn create_outcome_token(&mut self, outcome_id: OutcomeId) {
-        let price = self.get_initial_outcome_token_price();
-        let outcome_token = OutcomeToken::new(outcome_id, 0.0, price);
-        self.outcome_tokens.insert(&outcome_id, &outcome_token);
-    }
-
-    fn get_initial_outcome_token_price(&self) -> Price {
-        1 as Price / self.market.options.len() as Price
-    }
-
     fn burn_the_losers(&mut self, outcome_id: OutcomeId) {
         for id in 0..self.market.options.len() {
             let mut outcome_token = self.get_outcome_token(id as OutcomeId);

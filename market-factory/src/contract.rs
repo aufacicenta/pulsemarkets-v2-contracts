@@ -1,5 +1,9 @@
 use near_sdk::{
-    collections::UnorderedSet, env, json_types::Base64VecU8, near_bindgen, serde_json::json,
+    collections::UnorderedSet,
+    env,
+    json_types::Base64VecU8,
+    near_bindgen, serde_json,
+    serde_json::{json, Value},
     AccountId, Promise,
 };
 use std::default::Default;
@@ -33,11 +37,23 @@ impl MarketFactory {
             .parse()
             .unwrap();
 
+        let mut init_args: Value = serde_json::from_slice(&args.0.as_slice()).unwrap();
+
+        init_args.as_object_mut().unwrap().insert(
+            "market_creator_account_id".to_string(),
+            Value::String(env::signer_account_id().to_string()),
+        );
+
         let create_market_promise = Promise::new(market_account_id.clone())
             .create_account()
             .deploy_contract(MARKET_CODE.to_vec())
             .transfer(env::attached_deposit())
-            .function_call("new".to_string(), args.into(), 0, GAS_FOR_CREATE_MARKET);
+            .function_call(
+                "new".to_string(),
+                init_args.to_string().into_bytes(),
+                0,
+                GAS_FOR_CREATE_MARKET,
+            );
 
         // @TODO if this promise fails, the funds (attached_deposit) are not returned to the signer
 

@@ -89,8 +89,8 @@ impl Market {
     }
 
     /**
-     * A market is open (buys and sells are enabled) 3/4 before the event ends
-     * the reason being that users should not buy or sell 1 minute before the outcome becomes evident
+     * A market is open (buys are enabled) 3/4 before the event ends
+     * the reason being that users should not buy 1 minute before the outcome becomes evident
      */
     pub fn is_open(&self) -> bool {
         let limit = self.get_buy_sell_timestamp();
@@ -111,7 +111,7 @@ impl Market {
     }
 
     pub fn is_resolution_window_expired(&self) -> bool {
-        self.get_block_timestamp() > (self.market.ends_at + self.resolution_window)
+        self.get_block_timestamp() > self.resolution_window
     }
 
     pub fn balance_of(&self, outcome_id: OutcomeId, account_id: AccountId) -> WrappedBalance {
