@@ -22,12 +22,6 @@ impl Market {
         }
     }
 
-    pub fn assert_in_stand_by(&self) {
-        if self.has_begun() {
-            env::panic_str("ERR_EVENT_HAS_STARTED");
-        }
-    }
-
     pub fn assert_price_constant(&self) {
         let mut k: Price = 0.0;
 

@@ -76,7 +76,6 @@ impl Market {
     #[payable]
     pub fn publish(&mut self) -> Promise {
         self.assert_is_not_published();
-        self.assert_in_stand_by();
 
         let mut outcome_id = 0;
         let options = &self.market.options.clone();

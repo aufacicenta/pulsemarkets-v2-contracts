@@ -469,31 +469,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "ERR_EVENT_HAS_STARTED")]
-    fn test_publish_error_after_event_starts() {
-        let mut context = setup_context();
-
-        let now = Utc::now();
-        testing_env!(context.block_timestamp(block_timestamp(now)).build());
-        let starts_at = now - Duration::hours(1);
-        let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        let claiming_window = resolution_window + Duration::days(3);
-
-        let market_data: MarketData = create_market_data(
-            "a market description".to_string(),
-            2,
-            date(starts_at),
-            date(ends_at),
-        );
-
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
-
-        publish(&mut contract, &context);
-    }
-
-    #[test]
     #[should_panic(expected = "ERR_MARKET_IS_CLOSED")]
     fn test_buy_error_if_event_is_ongoing() {
         let mut context = setup_context();
