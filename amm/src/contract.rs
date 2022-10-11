@@ -22,7 +22,6 @@ impl Market {
         collateral_token_account_id: AccountId,
         market_creator_account_id: AccountId,
         fee_ratio: WrappedBalance,
-        resolution_window: Timestamp,
         claiming_window: Timestamp,
         // @TODO collateral_token_decimals should be set by a cross-contract call to ft_metadata, otherwise the system can be tamed
         collateral_token_decimals: u8,
@@ -42,14 +41,14 @@ impl Market {
                 decimals: collateral_token_decimals,
             },
             dao_account_id,
-            // @TODO chance to testnet address on release
+            // @TODO change to testnet address on release
             staking_token_account_id: AccountId::new_unchecked("pulse.fakes.testnet".to_string()),
             market_creator_account_id,
             market_publisher_account_id: None,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
             // @TODO move fee_ratio to Fees
             fee_ratio,
-            resolution_window,
+            resolution_window: None,
             published_at: None,
             resolved_at: None,
             fees: Fees {
@@ -58,6 +57,19 @@ impl Market {
                 market_publisher_fees: LookupMap::new(StorageKeys::MarketPublisherFees),
                 claiming_window,
             },
+        }
+    }
+
+    pub fn create_outcome_tokens(&mut self) {
+        match self.outcome_tokens.get(&0) {
+            Some(_token) => env::panic_str("ERR_CREATE_OUTCOME_TOKENS_OUTCOMES_EXIST"),
+            None => {
+                for outcome_id in 0..self.market.options.len() {
+                    self.create_outcome_token(outcome_id as u64);
+                }
+
+                self.assert_price_constant();
+            }
         }
     }
 
@@ -76,6 +88,10 @@ impl Market {
     #[payable]
     pub fn publish(&mut self) -> Promise {
         self.assert_is_not_published();
+
+        if !self.is_over() {
+            env::panic_str("ERR_PUBLISH_MARKET_IS_NOT_OVER");
+        }
 
         let mut outcome_id = 0;
         let options = &self.market.options.clone();
@@ -149,7 +165,6 @@ impl Market {
         amount: WrappedBalance,
         payload: BuyArgs,
     ) -> WrappedBalance {
-        self.assert_is_published();
         self.assert_is_open();
         self.assert_is_not_resolved();
 
@@ -349,5 +364,15 @@ impl Market {
                     .insert(&(id as OutcomeId), &outcome_token);
             }
         }
+    }
+
+    fn create_outcome_token(&mut self, outcome_id: OutcomeId) {
+        let price = self.get_initial_outcome_token_price();
+        let outcome_token = OutcomeToken::new(outcome_id, 0.0, price);
+        self.outcome_tokens.insert(&outcome_id, &outcome_token);
+    }
+
+    fn get_initial_outcome_token_price(&self) -> Price {
+        1 as Price / self.market.options.len() as Price
     }
 }

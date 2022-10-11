@@ -51,12 +51,10 @@ impl Market {
             _ => env::panic_str("ERR_CREATE_PROPOSALS_UNSUCCESSFUL"),
         }
 
-        for outcome_id in 0 .. self.market.options.len() {
-            self.create_outcome_token(outcome_id as u64);
-        }
-
-        self.assert_price_constant();
         self.published_at = Some(self.get_block_timestamp());
+        // add 3 days after published_at
+        self.resolution_window = Some(self.get_block_timestamp() + 259200 * 1_000_000_000);
+
         self.market_publisher_account_id = Some(env::signer_account_id());
 
         let storage_deposit_promise = Promise::new(self.collateral_token.id.clone()).function_call(
@@ -89,15 +87,5 @@ impl Market {
             PromiseResult::Successful(_res) => {}
             _ => env::panic_str("ERR_CREATE_PROPOSAL_UNSUCCESSFUL"),
         }
-    }
-
-    fn create_outcome_token(&mut self, outcome_id: OutcomeId) {
-        let price = self.get_initial_outcome_token_price();
-        let outcome_token = OutcomeToken::new(outcome_id, 0.0, price);
-        self.outcome_tokens.insert(&outcome_id, &outcome_token);
-    }
-
-    fn get_initial_outcome_token_price(&self) -> Price {
-        1 as Price / self.market.options.len() as Price
     }
 }
