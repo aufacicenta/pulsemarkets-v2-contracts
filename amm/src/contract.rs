@@ -22,7 +22,6 @@ impl Market {
         collateral_token_account_id: AccountId,
         market_creator_account_id: AccountId,
         fee_ratio: WrappedBalance,
-        claiming_window: Timestamp,
         // @TODO collateral_token_decimals should be set by a cross-contract call to ft_metadata, otherwise the system can be tamed
         collateral_token_decimals: u8,
     ) -> Self {
@@ -55,7 +54,7 @@ impl Market {
                 staking_fees: LookupMap::new(StorageKeys::StakingFees),
                 market_creator_fees: LookupMap::new(StorageKeys::MarketCreatorFees),
                 market_publisher_fees: LookupMap::new(StorageKeys::MarketPublisherFees),
-                claiming_window,
+                claiming_window: None,
             },
         }
     }

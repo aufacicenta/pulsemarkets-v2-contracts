@@ -62,14 +62,13 @@ mod tests {
         context
     }
 
-    fn setup_contract(market: MarketData, claiming_window: Timestamp) -> Market {
+    fn setup_contract(market: MarketData) -> Market {
         let contract = Market::new(
             market,
             dao_account_id(),
             collateral_token_id(),
             market_creator_account_id(),
             LP_FEE,
-            claiming_window,
             6,
         );
 
@@ -160,9 +159,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::hours(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -171,7 +167,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
         create_outcome_tokens(&mut contract);
 
         let now = ends_at + Duration::hours(1);
@@ -182,6 +178,16 @@ mod tests {
         publish(&mut contract, &context);
 
         assert_eq!(contract.is_published(), true);
+        assert_eq!(contract.is_claiming_window_expired(), false);
+        assert_eq!(contract.is_resolution_window_expired(), false);
+        assert_eq!(
+            contract.resolution_window(),
+            (block_timestamp(now) + 259200 * 1_000_000_000) as i64
+        );
+        assert_eq!(
+            contract.claiming_window(),
+            (contract.resolution_window() + 2592000 * 1_000_000_000) as i64
+        );
         assert_eq!(
             contract.get_market_publisher_account_id(),
             market_publisher_account_id()
@@ -204,9 +210,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::hours(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -215,7 +218,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
         create_outcome_tokens(&mut contract);
 
         let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
@@ -235,9 +238,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::hours(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -246,7 +246,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
 
         create_outcome_tokens(&mut contract);
 
@@ -271,9 +271,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::hours(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -282,7 +279,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
 
         create_outcome_tokens(&mut contract);
 
@@ -315,9 +312,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -326,7 +320,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
         create_outcome_tokens(&mut contract);
 
         testing_env!(context
@@ -479,9 +473,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -490,7 +481,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
 
         create_outcome_tokens(&mut contract);
 
@@ -526,9 +517,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -537,7 +525,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
         create_outcome_tokens(&mut contract);
 
         testing_env!(context
@@ -570,9 +558,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -581,7 +566,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
         create_outcome_tokens(&mut contract);
 
         buy(
@@ -616,9 +601,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -627,7 +609,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
         create_outcome_tokens(&mut contract);
         create_outcome_tokens(&mut contract);
     }
@@ -645,9 +627,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -656,7 +635,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
         create_outcome_tokens(&mut contract);
 
         buy(
@@ -686,9 +665,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-        // @TODO claiming window should be set after setting resolution_window upon publish
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -697,7 +673,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data, date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
         create_outcome_tokens(&mut contract);
 
         testing_env!(

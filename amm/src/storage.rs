@@ -92,7 +92,7 @@ pub struct Fees {
     pub staking_fees: LookupMap<AccountId, String>,
     pub market_creator_fees: LookupMap<AccountId, String>,
     pub market_publisher_fees: LookupMap<AccountId, String>,
-    pub claiming_window: Timestamp,
+    pub claiming_window: Option<Timestamp>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]

@@ -44,6 +44,12 @@ impl Market {
         }
     }
 
+    pub fn assert_is_claiming_window_open(&self) {
+        if self.is_claiming_window_expired() {
+            env::panic_str("ERR_CLAIMING_WINDOW_EXPIRED");
+        }
+    }
+
     pub fn assert_is_not_under_resolution(&self) {
         if self.is_over() && !self.is_resolution_window_expired() {
             env::panic_str("ERR_MARKET_IS_UNDER_RESOLUTION");
