@@ -27,6 +27,7 @@ impl MarketFactory {
 
         Self {
             markets: UnorderedSet::new(b"d".to_vec()),
+            ft_storage_deposit_called: false,
         }
     }
 

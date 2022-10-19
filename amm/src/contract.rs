@@ -72,6 +72,27 @@ impl Market {
         }
     }
 
+    pub fn ft_storage_deposit(&mut self) {
+        let storage_deposit_promise = Promise::new(self.collateral_token.id.clone()).function_call(
+            "storage_deposit".to_string(),
+            json!({ "account_id": env::current_account_id() })
+                .to_string()
+                .into_bytes(),
+            STORAGE_DEPOSIT_BOND,
+            GAS_STORAGE_DEPOSIT,
+        );
+
+        let storage_deposit_callback_promise = Promise::new(env::current_account_id())
+            .function_call(
+                "on_storage_deposit_callback".to_string(),
+                json!({}).to_string().into_bytes(),
+                0,
+                GAS_STORAGE_DEPOSIT_CALLBACK,
+            );
+
+        storage_deposit_promise.then(storage_deposit_callback_promise);
+    }
+
     /**
      * Creates market options Sputnik2 DAO proposals
      * Creates an OT per each proposal

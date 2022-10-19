@@ -1,9 +1,15 @@
-use near_sdk::{Balance, Gas};
+use near_sdk::Gas;
 
 pub const MARKET_CODE: &[u8] = include_bytes!("../res/amm.wasm");
 
-pub const GAS_FOR_CREATE_MARKET: Gas = Gas(17_000_000_000_000); // at current gas price per byte. AMM size is 252492 "wc -c res/amm.wasm"
-pub const GAS_FOR_PROCESS_MARKET_OPTIONS: Gas = Gas(19_000_000_000_000);
-pub const GAS_FOR_CREATE_MARKET_CALLBACK: Gas = Gas(2_000_000_000_000);
+pub const GAS_FOR_CREATE_MARKET: Gas = Gas(180_000_000_000_000); // at current gas price per byte. AMM size is 348101 "wc -c res/amm.wasm"
+pub const GAS_FOR_CREATE_MARKET_CALLBACK: Gas = Gas(15_000_000_000_000
+    + GAS_FOR_CREATE_OUTCOME_TOKENS.0
+    + GAS_FOR_CREATE_OUTCOME_TOKENS_CALLBACK.0);
 
-pub const BALANCE_PROPOSAL_BOND: Balance = 100_000_000_000_000_000_000_000; // 0.1 Near
+pub const GAS_FOR_CREATE_OUTCOME_TOKENS: Gas = Gas(15_000_000_000_000);
+pub const GAS_FOR_CREATE_OUTCOME_TOKENS_CALLBACK: Gas =
+    Gas(15_000_000_000_000 + GAS_FOR_FT_STORAGE_DEPOSIT.0 + GAS_FOR_FT_STORAGE_DEPOSIT_CALLBACK.0);
+
+pub const GAS_FOR_FT_STORAGE_DEPOSIT: Gas = Gas(15_000_000_000_000);
+pub const GAS_FOR_FT_STORAGE_DEPOSIT_CALLBACK: Gas = Gas(15_000_000_000_000);

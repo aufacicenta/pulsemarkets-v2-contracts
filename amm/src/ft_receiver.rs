@@ -18,8 +18,6 @@ impl FungibleTokenReceiver for Market {
      */
     #[payable]
     fn ft_on_transfer(&mut self, sender_id: AccountId, amount: String, msg: String) -> String {
-        self.assert_is_published();
-
         let amount: WrappedBalance = amount.parse::<WrappedBalance>().unwrap();
         assert!(amount > 0.0, "ERR_ZERO_AMOUNT");
 
