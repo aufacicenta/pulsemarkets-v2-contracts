@@ -39,6 +39,10 @@ mod tests {
         AccountId::new_unchecked("market_creator_account_id.near".to_string())
     }
 
+    fn market_publisher_account_id() -> AccountId {
+        AccountId::new_unchecked("market_publisher_account_id.near".to_string())
+    }
+
     fn date(date: chrono::DateTime<chrono::Utc>) -> i64 {
         date.timestamp_nanos().try_into().unwrap()
     }
@@ -58,19 +62,13 @@ mod tests {
         context
     }
 
-    fn setup_contract(
-        market: MarketData,
-        resolution_window: Timestamp,
-        claiming_window: Timestamp,
-    ) -> Market {
+    fn setup_contract(market: MarketData) -> Market {
         let contract = Market::new(
             market,
             dao_account_id(),
             collateral_token_id(),
             market_creator_account_id(),
             LP_FEE,
-            resolution_window,
-            claiming_window,
             6,
         );
 
@@ -118,6 +116,10 @@ mod tests {
         *collateral_token_balance -= balance * c.get_fee_ratio();
     }
 
+    fn create_outcome_tokens(c: &mut Market) {
+        c.create_outcome_tokens();
+    }
+
     fn publish(c: &mut Market, context: &VMContextBuilder) {
         c.publish();
 
@@ -157,8 +159,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        let claiming_window = resolution_window + Duration::hours(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -167,10 +167,31 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
+        create_outcome_tokens(&mut contract);
 
+        let now = ends_at + Duration::hours(1);
+        testing_env!(context
+            .block_timestamp(block_timestamp(now))
+            .signer_account_id(market_publisher_account_id())
+            .build());
         publish(&mut contract, &context);
+
+        assert_eq!(contract.is_published(), true);
+        assert_eq!(contract.is_claiming_window_expired(), false);
+        assert_eq!(contract.is_resolution_window_expired(), false);
+        assert_eq!(
+            contract.resolution_window(),
+            (block_timestamp(now) + 259200 * 1_000_000_000) as i64
+        );
+        assert_eq!(
+            contract.claiming_window(),
+            (contract.resolution_window() + 2592000 * 1_000_000_000) as i64
+        );
+        assert_eq!(
+            contract.get_market_publisher_account_id(),
+            market_publisher_account_id()
+        );
 
         let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
@@ -182,15 +203,41 @@ mod tests {
     }
 
     #[test]
-    fn test_publish_market_with_3_outcomes() {
+    fn test_create_outcome_tokens() {
         let mut context = setup_context();
 
         let now = Utc::now();
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        let claiming_window = resolution_window + Duration::hours(3);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            date(starts_at),
+            date(ends_at),
+        );
+
+        let mut contract: Market = setup_contract(market_data);
+        create_outcome_tokens(&mut contract);
+
+        let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
+        let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
+
+        assert_eq!(outcome_token_0.total_supply(), 0.0);
+        assert_eq!(outcome_token_1.total_supply(), 0.0);
+        assert_eq!(outcome_token_0.get_price(), 0.5);
+        assert_eq!(outcome_token_1.get_price(), 0.5);
+    }
+
+    #[test]
+    fn test_create_market_with_3_outcomes() {
+        let mut context = setup_context();
+
+        let now = Utc::now();
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
+        let starts_at = now + Duration::hours(1);
+        let ends_at = starts_at + Duration::hours(1);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -199,10 +246,9 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
 
-        publish(&mut contract, &context);
+        create_outcome_tokens(&mut contract);
 
         let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
@@ -218,15 +264,13 @@ mod tests {
     }
 
     #[test]
-    fn test_publish_market_with_4_outcomes() {
+    fn test_create_market_with_4_outcomes() {
         let mut context = setup_context();
 
         let now = Utc::now();
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-        let claiming_window = resolution_window + Duration::hours(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -235,10 +279,9 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
 
-        publish(&mut contract, &context);
+        create_outcome_tokens(&mut contract);
 
         let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
@@ -269,8 +312,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -279,11 +320,8 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
-
-        // @TODO publish may also be made by a CT ft_on_transfer
-        publish(&mut contract, &context);
+        let mut contract: Market = setup_contract(market_data);
+        create_outcome_tokens(&mut contract);
 
         testing_env!(context
             .block_timestamp(
@@ -372,9 +410,11 @@ mod tests {
 
         assert_eq!(contract.get_collateral_token_metadata().balance, 1300.0);
 
-        // Event is over. Resolution window is open
-        let now = resolution_window - Duration::days(1);
+        // @TODO publish may also be made by a CT ft_on_transfer
+        // Publish after the market is over
+        let now = ends_at + Duration::days(1);
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
+        publish(&mut contract, &context);
 
         // Resolve the market: Burn the losers
         testing_env!(context.signer_account_id(dao_account_id()).build());
@@ -383,7 +423,7 @@ mod tests {
         assert_eq!(outcome_token_no.is_active(), false);
 
         // Resolution window is due
-        let now = resolution_window + Duration::days(1);
+        let now = now + Duration::days(4);
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
 
         // alice sells all her OT balance after the market is resolved
@@ -433,8 +473,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -443,11 +481,9 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
+        let mut contract: Market = setup_contract(market_data);
 
-        // @TODO publish may also be made by a CT ft_on_transfer
-        publish(&mut contract, &context);
+        create_outcome_tokens(&mut contract);
 
         let amounts = vec![100.0, 200.0, 300.0, 50.0, 10.0, 20.0, 500.0];
         let buyers = vec![alice(), bob(), carol(), daniel(), emily(), frank(), gus()];
@@ -469,31 +505,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "ERR_EVENT_HAS_STARTED")]
-    fn test_publish_error_after_event_starts() {
-        let mut context = setup_context();
-
-        let now = Utc::now();
-        testing_env!(context.block_timestamp(block_timestamp(now)).build());
-        let starts_at = now - Duration::hours(1);
-        let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        let claiming_window = resolution_window + Duration::days(3);
-
-        let market_data: MarketData = create_market_data(
-            "a market description".to_string(),
-            2,
-            date(starts_at),
-            date(ends_at),
-        );
-
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
-
-        publish(&mut contract, &context);
-    }
-
-    #[test]
     #[should_panic(expected = "ERR_MARKET_IS_CLOSED")]
     fn test_buy_error_if_event_is_ongoing() {
         let mut context = setup_context();
@@ -506,8 +517,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -516,10 +525,8 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
-
-        publish(&mut contract, &context);
+        let mut contract: Market = setup_contract(market_data);
+        create_outcome_tokens(&mut contract);
 
         testing_env!(context
             .block_timestamp(
@@ -540,7 +547,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "ERR_MARKET_NOT_RESOLVED")]
-    fn test_sell_error_if_event_is_ongoing() {
+    fn test_sell_error_if_event_is_not_resolved() {
         let mut context = setup_context();
 
         let mut collateral_token_balance: WrappedBalance = 0.0;
@@ -551,8 +558,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -561,10 +566,8 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
-
-        publish(&mut contract, &context);
+        let mut contract: Market = setup_contract(market_data);
+        create_outcome_tokens(&mut contract);
 
         buy(
             &mut contract,
@@ -574,17 +577,41 @@ mod tests {
             yes,
         );
 
+        let now = ends_at + Duration::hours(1);
         testing_env!(context
-            .block_timestamp(
-                (starts_at + Duration::minutes(20))
-                    .timestamp_nanos()
-                    .try_into()
-                    .unwrap()
-            )
+            .block_timestamp(block_timestamp(now))
+            .signer_account_id(alice())
+            .build());
+        publish(&mut contract, &context);
+
+        testing_env!(context
+            .block_timestamp(block_timestamp(now + Duration::days(4)))
             .signer_account_id(alice())
             .build());
         let alice_balance = contract.balance_of(yes, alice());
         sell(&mut contract, alice(), alice_balance, yes, &context);
+    }
+
+    #[test]
+    #[should_panic(expected = "ERR_CREATE_OUTCOME_TOKENS_OUTCOMES_EXIST")]
+    fn test_create_outcome_tokens_error() {
+        let mut context = setup_context();
+
+        let now = Utc::now();
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
+        let starts_at = now + Duration::hours(1);
+        let ends_at = starts_at + Duration::hours(1);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            date(starts_at),
+            date(ends_at),
+        );
+
+        let mut contract: Market = setup_contract(market_data);
+        create_outcome_tokens(&mut contract);
+        create_outcome_tokens(&mut contract);
     }
 
     #[test]
@@ -600,8 +627,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::hours(1);
         let ends_at = starts_at + Duration::hours(1);
-        let resolution_window = ends_at + Duration::hours(3);
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -610,10 +635,8 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
-
-        publish(&mut contract, &context);
+        let mut contract: Market = setup_contract(market_data);
+        create_outcome_tokens(&mut contract);
 
         buy(
             &mut contract,
@@ -623,19 +646,15 @@ mod tests {
             yes,
         );
 
-        // Event is over. Resolution window is open
-        let now = resolution_window - Duration::hours(1);
+        let now = ends_at + Duration::hours(1);
         testing_env!(context
             .block_timestamp(block_timestamp(now))
             .signer_account_id(alice())
             .build());
+        publish(&mut contract, &context);
 
         let alice_balance = contract.balance_of(yes, alice());
         sell(&mut contract, alice(), alice_balance, yes, &context);
-
-        // Resolve the market: Burn the losers
-        // testing_env!(context.signer_account_id(dao_account_id()).build());
-        // resolve(&mut contract, &mut collateral_token_balance, yes);
     }
 
     #[test]
@@ -646,8 +665,6 @@ mod tests {
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
         let starts_at = now + Duration::days(5);
         let ends_at = starts_at + Duration::days(10);
-        let resolution_window = ends_at + Duration::days(3);
-        let claiming_window = resolution_window + Duration::days(3);
 
         let market_data: MarketData = create_market_data(
             "a market description".to_string(),
@@ -656,10 +673,8 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market =
-            setup_contract(market_data, date(resolution_window), date(claiming_window));
-
-        publish(&mut contract, &context);
+        let mut contract: Market = setup_contract(market_data);
+        create_outcome_tokens(&mut contract);
 
         testing_env!(
             context.build(),

@@ -15,6 +15,7 @@ impl Market {
      */
     pub fn claim_staking_fees_resolved(&mut self) {
         self.assert_is_resolved();
+        self.assert_is_claiming_window_open();
 
         match self.fees.staking_fees.get(&env::signer_account_id()) {
             Some(_) => env::panic_str("ERR_CLAIM_STAKING_FEES_RESOLVED_NO_FEES_TO_CLAIM"),
@@ -74,6 +75,7 @@ impl Market {
      */
     pub fn claim_market_creator_fees_resolved(&mut self) {
         self.assert_is_resolved();
+        self.assert_is_claiming_window_open();
 
         let payee = env::signer_account_id();
 
@@ -127,6 +129,7 @@ impl Market {
      */
     pub fn claim_market_publisher_fees_resolved(&mut self) {
         self.assert_is_resolved();
+        self.assert_is_claiming_window_open();
 
         let payee = env::signer_account_id();
 
@@ -325,7 +328,17 @@ impl Market {
     }
 
     pub fn is_claiming_window_expired(&self) -> bool {
-        self.get_block_timestamp() > self.fees.claiming_window
+        match self.fees.claiming_window {
+            Some(timestamp) => self.get_block_timestamp() > timestamp,
+            None => false,
+        }
+    }
+
+    pub fn claiming_window(&self) -> Timestamp {
+        match self.fees.claiming_window {
+            Some(timestamp) => timestamp,
+            None => env::panic_str("ERR_CLAIMING_WINDOW_NOT_SET"),
+        }
     }
 
     fn get_precision(&self) -> String {

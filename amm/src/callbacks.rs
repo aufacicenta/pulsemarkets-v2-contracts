@@ -1,7 +1,5 @@
-use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen, AccountId, Promise, PromiseResult};
+use near_sdk::{env, log, near_bindgen, AccountId, PromiseResult};
 
-use crate::consts::*;
 use crate::storage::*;
 
 #[near_bindgen]
@@ -35,48 +33,21 @@ impl Market {
     }
 
     #[private]
-    pub fn on_storage_deposit_callback(&mut self) {
-        match env::promise_result(0) {
-            PromiseResult::Successful(_result) => {
-                log!("on_storage_deposit_callback: success");
-            }
-            _ => env::panic_str("ERR_ON_STORAGE_DEPOSIT_CALLBACK"),
-        }
-    }
-
-    #[private]
-    pub fn on_create_proposals_callback(&mut self) -> Promise {
+    pub fn on_create_proposals_callback(&mut self) -> bool {
         match env::promise_result(0) {
             PromiseResult::Successful(_res) => {}
             _ => env::panic_str("ERR_CREATE_PROPOSALS_UNSUCCESSFUL"),
         }
 
-        for outcome_id in 0 .. self.market.options.len() {
-            self.create_outcome_token(outcome_id as u64);
-        }
-
-        self.assert_price_constant();
         self.published_at = Some(self.get_block_timestamp());
+        // add 3 days after published_at
+        self.resolution_window = Some(self.get_block_timestamp() + 259200 * 1_000_000_000);
+        // add 30 days after resolution_window
+        self.fees.claiming_window = Some(self.resolution_window() + 2592000 * 1_000_000_000);
+
         self.market_publisher_account_id = Some(env::signer_account_id());
 
-        let storage_deposit_promise = Promise::new(self.collateral_token.id.clone()).function_call(
-            "storage_deposit".to_string(),
-            json!({ "account_id": env::current_account_id() })
-                .to_string()
-                .into_bytes(),
-            STORAGE_DEPOSIT_BOND,
-            GAS_STORAGE_DEPOSIT,
-        );
-
-        let storage_deposit_callback_promise = Promise::new(env::current_account_id())
-            .function_call(
-                "on_storage_deposit_callback".to_string(),
-                json!({}).to_string().into_bytes(),
-                0,
-                GAS_STORAGE_DEPOSIT_CALLBACK,
-            );
-
-        storage_deposit_promise.then(storage_deposit_callback_promise)
+        true
     }
 
     /**
@@ -89,15 +60,5 @@ impl Market {
             PromiseResult::Successful(_res) => {}
             _ => env::panic_str("ERR_CREATE_PROPOSAL_UNSUCCESSFUL"),
         }
-    }
-
-    fn create_outcome_token(&mut self, outcome_id: OutcomeId) {
-        let price = self.get_initial_outcome_token_price();
-        let outcome_token = OutcomeToken::new(outcome_id, 0.0, price);
-        self.outcome_tokens.insert(&outcome_id, &outcome_token);
-    }
-
-    fn get_initial_outcome_token_price(&self) -> Price {
-        1 as Price / self.market.options.len() as Price
     }
 }

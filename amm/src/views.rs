@@ -50,6 +50,17 @@ impl Market {
         self.dao_account_id.clone()
     }
 
+    pub fn get_market_publisher_account_id(&self) -> AccountId {
+        match &self.market_publisher_account_id {
+            Some(account_id) => account_id.clone(),
+            None => env::panic_str("ERR_MARKET_PUBLISHER_ACCOUNT_ID_NOT_SET"),
+        }
+    }
+
+    pub fn get_market_creator_account_id(&self) -> AccountId {
+        self.market_creator_account_id.clone()
+    }
+
     pub fn published_at(&self) -> Timestamp {
         match self.published_at {
             Some(timestamp) => timestamp,
@@ -58,7 +69,10 @@ impl Market {
     }
 
     pub fn resolution_window(&self) -> Timestamp {
-        self.resolution_window
+        match self.resolution_window {
+            Some(timestamp) => timestamp,
+            None => env::panic_str("ERR_RESOLUTION_WINDOW_NOT_SET"),
+        }
     }
 
     pub fn resolved_at(&self) -> Timestamp {
@@ -111,7 +125,10 @@ impl Market {
     }
 
     pub fn is_resolution_window_expired(&self) -> bool {
-        self.get_block_timestamp() > self.resolution_window
+        match self.resolution_window {
+            Some(timestamp) => self.get_block_timestamp() > timestamp,
+            None => false,
+        }
     }
 
     pub fn balance_of(&self, outcome_id: OutcomeId, account_id: AccountId) -> WrappedBalance {

@@ -22,12 +22,6 @@ impl Market {
         }
     }
 
-    pub fn assert_in_stand_by(&self) {
-        if self.has_begun() {
-            env::panic_str("ERR_EVENT_HAS_STARTED");
-        }
-    }
-
     pub fn assert_price_constant(&self) {
         let mut k: Price = 0.0;
 
@@ -47,6 +41,12 @@ impl Market {
     pub fn assert_is_resolution_window_open(&self) {
         if self.is_resolution_window_expired() {
             env::panic_str("ERR_RESOLUTION_WINDOW_EXPIRED");
+        }
+    }
+
+    pub fn assert_is_claiming_window_open(&self) {
+        if self.is_claiming_window_expired() {
+            env::panic_str("ERR_CLAIMING_WINDOW_EXPIRED");
         }
     }
 

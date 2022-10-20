@@ -48,7 +48,7 @@ pub struct Market {
     // When the market is published
     pub resolved_at: Option<Timestamp>,
     // Time to free up the market
-    pub resolution_window: Timestamp,
+    pub resolution_window: Option<Timestamp>,
     // Time to free up the market
     // Maps to check if fee has been paid for AccountId
     pub fees: Fees,
@@ -92,7 +92,7 @@ pub struct Fees {
     pub staking_fees: LookupMap<AccountId, String>,
     pub market_creator_fees: LookupMap<AccountId, String>,
     pub market_publisher_fees: LookupMap<AccountId, String>,
-    pub claiming_window: Timestamp,
+    pub claiming_window: Option<Timestamp>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
