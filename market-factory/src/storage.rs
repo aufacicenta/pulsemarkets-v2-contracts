@@ -8,5 +8,4 @@ use near_sdk::{
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct MarketFactory {
     pub markets: UnorderedSet<AccountId>,
-    pub ft_storage_deposit_called: bool,
 }

@@ -27,7 +27,6 @@ impl MarketFactory {
 
         Self {
             markets: UnorderedSet::new(b"d".to_vec()),
-            ft_storage_deposit_called: false,
         }
     }
 
@@ -45,10 +44,11 @@ impl MarketFactory {
             Value::String(env::signer_account_id().to_string()),
         );
 
+        // @TODO if this promise fails, the funds (attached_deposit) are not returned to the signer
         let create_market_promise = Promise::new(market_account_id.clone())
             .create_account()
             .deploy_contract(MARKET_CODE.to_vec())
-            .transfer(env::attached_deposit())
+            .transfer(env::attached_deposit() - STORAGE_DEPOSIT_BOND)
             .function_call(
                 "new".to_string(),
                 init_args.to_string().into_bytes(),
@@ -56,13 +56,19 @@ impl MarketFactory {
                 GAS_FOR_CREATE_MARKET,
             );
 
-        // @TODO if this promise fails, the funds (attached_deposit) are not returned to the signer
+        let collateral_token_account_id = init_args
+            .as_object()
+            .unwrap()
+            .get("collateral_token_account_id");
 
         let create_market_callback = Promise::new(env::current_account_id()).function_call(
             "on_create_market_callback".to_string(),
-            json!({ "market_account_id": market_account_id })
-                .to_string()
-                .into_bytes(),
+            json!({
+                "market_account_id": market_account_id,
+                "collateral_token_account_id": collateral_token_account_id
+            })
+            .to_string()
+            .into_bytes(),
             0,
             GAS_FOR_CREATE_MARKET_CALLBACK,
         );
