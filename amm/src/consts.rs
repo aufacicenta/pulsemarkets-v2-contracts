@@ -1,7 +1,7 @@
 use near_sdk::{Balance, Gas, ONE_YOCTO};
 
-pub const GAS_CREATE_DAO_PROPOSAL: Gas = Gas(3_000_000_000_000);
-pub const GAS_CREATE_DAO_PROPOSAL_CALLBACK: Gas = Gas(3_000_000_000_000);
+pub const GAS_CREATE_DAO_PROPOSAL: Gas = Gas(8_000_000_000_000);
+pub const GAS_CREATE_DAO_PROPOSAL_CALLBACK: Gas = Gas(8_000_000_000_000);
 pub const GAS_FT_TRANSFER: Gas = Gas(3_000_000_000_000);
 pub const GAS_FT_BALANCE_OF: Gas = Gas(3_000_000_000_000);
 pub const GAS_FT_TRANSFER_CALLBACK: Gas = Gas(3_000_000_000_000);
