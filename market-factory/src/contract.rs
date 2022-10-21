@@ -31,8 +31,7 @@ impl MarketFactory {
     }
 
     #[payable]
-    pub fn create_market(&mut self, args: Base64VecU8) -> Promise {
-        let name = format!("market_{}", self.markets.len() + 1);
+    pub fn create_market(&mut self, name: AccountId, args: Base64VecU8) -> Promise {
         let market_account_id: AccountId = format!("{}.{}", name, env::current_account_id())
             .parse()
             .unwrap();
