@@ -105,7 +105,7 @@ impl Market {
                 "add_proposal".to_string(),
                 json!({
                     "proposal": {
-                        "description": format!("{}\nOutcome: {}$$$$$$$$ProposeCustomFunctionCall",
+                        "description": format!("{}\nOutcome: {}",
                             self.market.description,
                             outcome),
                         "kind": {
