@@ -63,7 +63,7 @@ impl Market {
     }
 
     pub fn assert_only_owner(&self) {
-        if self.dao_account_id != env::signer_account_id() {
+        if self.dao_account_id != env::predecessor_account_id() {
             env::panic_str("ERR_SIGNER_IS_NOT_OWNER");
         }
     }

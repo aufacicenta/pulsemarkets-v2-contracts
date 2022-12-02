@@ -417,7 +417,7 @@ mod tests {
         publish(&mut contract, &context);
 
         // Resolve the market: Burn the losers
-        testing_env!(context.signer_account_id(dao_account_id()).build());
+        testing_env!(context.predecessor_account_id(dao_account_id()).build());
         resolve(&mut contract, &mut collateral_token_balance, yes);
         let outcome_token_no = contract.get_outcome_token(no);
         assert_eq!(outcome_token_no.is_active(), false);
