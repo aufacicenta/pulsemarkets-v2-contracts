@@ -1,5 +1,7 @@
-use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen, require, serde_json, AccountId, Promise, PromiseResult};
+use near_sdk::{
+    env, json_types::U128, log, near_bindgen, require, serde_json, AccountId, Promise,
+    PromiseResult,
+};
 
 use crate::consts::*;
 use crate::storage::*;
@@ -23,7 +25,7 @@ impl Market {
                 let ft_balance_of_promise = env::promise_create(
                     self.staking_token_account_id.clone(),
                     "ft_balance_of",
-                    json!({
+                    serde_json::json!({
                         "account_id": env::signer_account_id(),
                     })
                     .to_string()
@@ -35,7 +37,7 @@ impl Market {
                 let ft_total_supply_promise = env::promise_create(
                     self.staking_token_account_id.clone(),
                     "ft_total_supply",
-                    json!({}).to_string().as_bytes(),
+                    serde_json::json!({}).to_string().as_bytes(),
                     0,
                     GAS_FT_TOTAL_SUPPLY,
                 );
@@ -48,7 +50,7 @@ impl Market {
                     promises,
                     env::current_account_id(),
                     "on_claim_staking_fees_resolved_callback",
-                    json!({
+                    serde_json::json!({
                         "amount": amount,
                         "payee": env::signer_account_id(),
                     })
@@ -93,7 +95,7 @@ impl Market {
                 let ft_transfer_promise = Promise::new(self.collateral_token.id.clone())
                     .function_call(
                         "ft_transfer".to_string(),
-                        json!({
+                        serde_json::json!({
                             "amount": amount_payable.to_string(),
                             "receiver_id": payee
                         })
@@ -106,7 +108,7 @@ impl Market {
                 let ft_transfer_callback_promise = Promise::new(env::current_account_id())
                     .function_call(
                         "on_claim_market_creator_fees_resolved_callback".to_string(),
-                        json!({
+                        serde_json::json!({
                             "payee": payee,
                         })
                         .to_string()
@@ -152,7 +154,7 @@ impl Market {
                         let ft_transfer_promise = Promise::new(self.collateral_token.id.clone())
                             .function_call(
                                 "ft_transfer".to_string(),
-                                json!({
+                                serde_json::json!({
                                     "amount": amount_payable.to_string(),
                                     "receiver_id": payee
                                 })
@@ -165,7 +167,7 @@ impl Market {
                         let ft_transfer_callback_promise = Promise::new(env::current_account_id())
                             .function_call(
                                 "on_claim_market_publisher_fees_resolved_callback".to_string(),
-                                json!({
+                                serde_json::json!({
                                     "payee": payee,
                                 })
                                 .to_string()
@@ -183,40 +185,37 @@ impl Market {
     }
 
     /**
-     * Lets users claim proportional fees of an unresolved market
-     *
-     * @notice only if market was not resolved after resolution window
-     *
-     * @returns WrappedBalance of fee proportion paid
-     */
-    #[payable]
-    pub fn claim_fees_unresolved(&mut self) -> WrappedBalance {
-        if !self.is_resolution_window_expired() && self.is_resolved() {
-            env::panic_str("ERR_CANNOT_CLAIM_FEES_OF_RESOLVED_MARKET");
-        }
-
-        // @TODO let users claim their proportional fees
-        // @TODO iterate over all outcome token supplies for the user and get their cumulative weight
-
-        0.0
-    }
-
-    /**
      * Sends the remaining unclaimed fees to DAO
      *
      * @notice only if market is resolved and fees claiming window expired
      *
-     * @returns WrappedBalance of fee proportion paid
+     * @returns Promise
      */
     #[payable]
-    pub fn claim_fees_unclaimed(&mut self) -> WrappedBalance {
+    pub fn claim_fees_unclaimed(&mut self) -> Promise {
         if !self.is_claiming_window_expired() || !self.is_resolved() {
             env::panic_str("ERR_CANNOT_CLAIM_FEES_OF_RESOLVED_MARKET_BEFORE_WINDOW_EXPIRATION");
         }
 
-        // @TODO get remaining fees balance and send them to DAO
+        let ft_balance_of_promise = Promise::new(self.collateral_token.id.clone()).function_call(
+            "ft_balance_of".to_string(),
+            serde_json::json!({
+                "account_id": env::current_account_id(),
+            })
+            .to_string()
+            .into_bytes(),
+            0,
+            GAS_FT_BALANCE_OF,
+        );
 
-        0.0
+        let ft_balance_of_callback_promise = Promise::new(env::current_account_id()).function_call(
+            "on_ft_balance_of_market_callback".to_string(),
+            serde_json::json!({}).to_string().into_bytes(),
+            0,
+            GAS_FT_BALANCE_OF_CALLBACK,
+        );
+
+        ft_balance_of_promise.then(ft_balance_of_callback_promise)
     }
 
     #[private]
@@ -265,7 +264,7 @@ impl Market {
         // let ft_transfer_promise =
         Promise::new(self.collateral_token.id.clone()).function_call(
             "ft_transfer".to_string(),
-            json!({
+            serde_json::json!({
                 "amount": amount_payable.to_string(),
                 "receiver_id": payee
             })
@@ -318,6 +317,62 @@ impl Market {
             .insert(&payee, &amount_payable.to_string());
 
         return amount_payable.to_string();
+    }
+
+    /**
+     * Sends the remaining unclaimed fees to DAO
+     *
+     * @notice only if market is resolved and fees claiming window expired
+     *
+     * @returns Promise
+     */
+    #[private]
+    pub fn on_ft_balance_of_market_callback(&mut self) -> Promise {
+        let ft_balance_of_result: U128 = match env::promise_result(0) {
+            PromiseResult::Successful(result) => {
+                serde_json::from_slice(&result).expect("ERR_ON_FT_BALANCE_OF")
+            }
+            _ => env::panic_str("ERR_ON_FT_BALANCE_OF_CALLBACK"),
+        };
+
+        if ft_balance_of_result == U128(0) {
+            env::panic_str("ERR_ON_FT_BALANCE_OF_CALLBACK_BALANCE_IS_0");
+        }
+
+        let ft_transfer_promise = Promise::new(self.collateral_token.id.clone()).function_call(
+            "ft_transfer".to_string(),
+            serde_json::json!({
+                "amount": ft_balance_of_result,
+                "receiver_id": self.dao_account_id()
+            })
+            .to_string()
+            .into_bytes(),
+            FT_TRANSFER_BOND,
+            GAS_FT_TRANSFER,
+        );
+
+        let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
+            "on_ft_transfer_to_dao_callback".to_string(),
+            serde_json::json!({}).to_string().into_bytes(),
+            0,
+            GAS_FT_TRANSFER_CALLBACK,
+        );
+
+        ft_transfer_promise.then(ft_transfer_callback_promise)
+    }
+
+    /**
+     * Logs successful ft_transfer callback
+     */
+    #[private]
+    pub fn on_ft_transfer_to_dao_callback(&mut self) {
+        match env::promise_result(0) {
+            PromiseResult::Successful(result) => {
+                let amount: u128 = serde_json::from_slice(&result).expect("ERR_ON_FT_TRANSFER");
+                log!("on_ft_transfer_callback: {}", amount);
+            }
+            _ => env::panic_str("ERR_ON_FT_TRANFER_CALLBACK"),
+        };
     }
 
     pub fn get_claimed_staking_fees(&self, account_id: AccountId) -> String {
