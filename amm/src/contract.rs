@@ -237,6 +237,10 @@ impl Market {
         let (weight, amount_payable) =
             self.get_amount_payable(amount, outcome_id, self.collateral_token.balance);
 
+        if amount_payable.is_infinite() || amount_payable.is_nan() || amount_payable <= 0.0 {
+            env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");
+        }
+
         log!(
             "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",
             amount,
