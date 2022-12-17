@@ -456,7 +456,10 @@ mod tests {
         let outcome_token_yes = contract.get_outcome_token(yes);
         assert_eq!(outcome_token_yes.total_supply().ceil(), 0.0);
 
-        assert_eq!(contract.get_collateral_token_metadata().balance, 0.0);
+        assert_eq!(
+            contract.get_collateral_token_metadata().balance,
+            contract.collateral_token.fee_balance
+        );
     }
 
     #[test]
