@@ -24,7 +24,7 @@ impl MarketFactory {
                 let storage_deposit_promise = env::promise_create(
                     collateral_token_account_id,
                     "storage_deposit",
-                    json!({ "account_id": market_account_id })
+                    json!({ "account_id": market_account_id, "registration_only": true })
                         .to_string()
                         .as_bytes(),
                     STORAGE_DEPOSIT_BOND,
