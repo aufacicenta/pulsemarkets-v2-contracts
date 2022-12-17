@@ -87,6 +87,7 @@ impl OutcomeToken {
      */
     pub fn deactivate(&mut self) {
         self.is_active = false;
+        self.total_supply = 0.0;
     }
 
     /**

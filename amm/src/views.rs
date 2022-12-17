@@ -178,13 +178,15 @@ impl Market {
         outcome_id: OutcomeId,
         balance: WrappedBalance,
     ) -> (WrappedBalance, WrappedBalance) {
+        let fees = self.collateral_token.fee_balance;
+
         let mut weight = self.get_cumulative_weight(amount);
-        let mut amount_payable = (balance * weight).floor();
+        let mut amount_payable = (balance * weight - fees * weight).floor();
 
         if self.is_resolved() {
             let outcome_token = self.get_outcome_token(outcome_id);
             weight = amount / outcome_token.total_supply();
-            amount_payable = (balance * weight).floor();
+            amount_payable = (balance * weight - fees * weight).floor();
         }
 
         (weight, amount_payable)

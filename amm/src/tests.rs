@@ -417,12 +417,13 @@ mod tests {
         publish(&mut contract, &context);
 
         // Resolve the market: Burn the losers
-        testing_env!(context.signer_account_id(dao_account_id()).build());
+        testing_env!(context.predecessor_account_id(dao_account_id()).build());
         resolve(&mut contract, &mut collateral_token_balance, yes);
         let outcome_token_no = contract.get_outcome_token(no);
         assert_eq!(outcome_token_no.is_active(), false);
+        assert_eq!(outcome_token_no.total_supply(), 0.0);
 
-        // Resolution window is due
+        // Resolution window is over
         let now = now + Duration::days(4);
         testing_env!(context.block_timestamp(block_timestamp(now)).build());
 
@@ -455,7 +456,77 @@ mod tests {
         let outcome_token_yes = contract.get_outcome_token(yes);
         assert_eq!(outcome_token_yes.total_supply().ceil(), 0.0);
 
-        assert_eq!(contract.get_collateral_token_metadata().balance, 0.0);
+        assert_eq!(
+            contract.get_collateral_token_metadata().balance,
+            contract.collateral_token.fee_balance
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "ERR_CANT_SELL_A_LOSING_OUTCOME")]
+    fn test_binary_market_errors_when_selling_losing_outcomes() {
+        let mut context = setup_context();
+
+        let mut collateral_token_balance: WrappedBalance = 0.0;
+
+        let yes = 0;
+        let no = 1;
+
+        let now = Utc::now();
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
+        let starts_at = now + Duration::days(5);
+        let ends_at = starts_at + Duration::days(10);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            date(starts_at),
+            date(ends_at),
+        );
+
+        let mut contract: Market = setup_contract(market_data);
+        create_outcome_tokens(&mut contract);
+
+        testing_env!(context
+            .block_timestamp(
+                (starts_at - Duration::days(4))
+                    .timestamp_nanos()
+                    .try_into()
+                    .unwrap()
+            )
+            .build());
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            alice(),
+            400.0,
+            yes,
+        );
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            emily(),
+            100.0,
+            no,
+        );
+
+        // Publish after the market is over
+        let now = ends_at + Duration::days(1);
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
+        publish(&mut contract, &context);
+
+        // Resolve the market: Burn the losers
+        testing_env!(context.predecessor_account_id(dao_account_id()).build());
+        resolve(&mut contract, &mut collateral_token_balance, yes);
+
+        // Resolution window is over
+        let now = now + Duration::days(4);
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
+
+        // emily tries to sell a losing outcome token
+        let emily_balance = contract.balance_of(no, emily());
+        testing_env!(context.signer_account_id(emily()).build());
+        sell(&mut contract, emily(), emily_balance, no, &context);
     }
 
     #[test]
