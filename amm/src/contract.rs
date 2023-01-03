@@ -223,66 +223,15 @@ impl Market {
     #[payable]
     pub fn sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
         // @TODO if there are participants only in 1 outcome, allow to claim funds after resolution, otherwise funds will be locked
+        if self.is_resolution_window_expired() && !self.is_resolved() {
+            return self.internal_sell(outcome_id, amount);
+        }
+
         self.assert_is_published();
         self.assert_is_not_under_resolution();
         self.assert_is_resolved();
 
-        if amount > self.balance_of(outcome_id, env::signer_account_id()) {
-            env::panic_str("ERR_SELL_AMOUNT_GREATER_THAN_BALANCE");
-        }
-
-        let outcome_token = self.get_outcome_token(outcome_id);
-
-        let payee = env::signer_account_id();
-        let (weight, amount_payable) =
-            self.get_amount_payable(amount, outcome_id, self.collateral_token.balance);
-
-        if amount_payable.is_infinite() || amount_payable.is_nan() || amount_payable <= 0.0 {
-            env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");
-        }
-
-        log!(
-            "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",
-            amount,
-            outcome_id,
-            payee,
-            outcome_token.get_balance(&payee),
-            outcome_token.total_supply(),
-            self.is_resolved(),
-            self.collateral_token.balance,
-            weight,
-            amount_payable,
-        );
-
-        let ft_transfer_promise = Promise::new(self.collateral_token.id.clone()).function_call(
-            "ft_transfer".to_string(),
-            json!({
-                "amount": amount_payable.to_string(),
-                "receiver_id": payee
-            })
-            .to_string()
-            .into_bytes(),
-            FT_TRANSFER_BOND,
-            GAS_FT_TRANSFER,
-        );
-
-        let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
-            "on_ft_transfer_callback".to_string(),
-            json!({
-                "amount": amount,
-                "payee": payee,
-                "outcome_id": outcome_id,
-                "amount_payable": amount_payable
-            })
-            .to_string()
-            .into_bytes(),
-            0,
-            GAS_FT_TRANSFER_CALLBACK,
-        );
-
-        ft_transfer_promise.then(ft_transfer_callback_promise);
-
-        return amount_payable;
+        return self.internal_sell(outcome_id, amount);
     }
 
     /**
@@ -379,5 +328,64 @@ impl Market {
 
     fn get_initial_outcome_token_price(&self) -> Price {
         1 as Price / self.market.options.len() as Price
+    }
+
+    fn internal_sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
+        if amount > self.balance_of(outcome_id, env::signer_account_id()) {
+            env::panic_str("ERR_SELL_AMOUNT_GREATER_THAN_BALANCE");
+        }
+
+        let outcome_token = self.get_outcome_token(outcome_id);
+
+        let payee = env::signer_account_id();
+        let (weight, amount_payable) =
+            self.get_amount_payable(amount, outcome_id, self.collateral_token.balance);
+
+        if amount_payable.is_infinite() || amount_payable.is_nan() || amount_payable <= 0.0 {
+            env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");
+        }
+
+        log!(
+            "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",
+            amount,
+            outcome_id,
+            payee,
+            outcome_token.get_balance(&payee),
+            outcome_token.total_supply(),
+            self.is_resolved(),
+            self.collateral_token.balance,
+            weight,
+            amount_payable,
+        );
+
+        let ft_transfer_promise = Promise::new(self.collateral_token.id.clone()).function_call(
+            "ft_transfer".to_string(),
+            json!({
+                "amount": amount_payable.to_string(),
+                "receiver_id": payee
+            })
+            .to_string()
+            .into_bytes(),
+            FT_TRANSFER_BOND,
+            GAS_FT_TRANSFER,
+        );
+
+        let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
+            "on_ft_transfer_callback".to_string(),
+            json!({
+                "amount": amount,
+                "payee": payee,
+                "outcome_id": outcome_id,
+                "amount_payable": amount_payable
+            })
+            .to_string()
+            .into_bytes(),
+            0,
+            GAS_FT_TRANSFER_CALLBACK,
+        );
+
+        ft_transfer_promise.then(ft_transfer_callback_promise);
+
+        amount_payable
     }
 }
