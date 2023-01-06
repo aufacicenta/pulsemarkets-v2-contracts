@@ -185,7 +185,7 @@ impl Market {
     }
 
     /**
-     * Sends the remaining unclaimed fees to DAO
+     * Sends the remaining unclaimed collateral token balance to the DAO
      *
      * @notice only if market is resolved and fees claiming window expired
      *
@@ -193,7 +193,7 @@ impl Market {
      */
     #[payable]
     pub fn claim_fees_unclaimed(&mut self) -> Promise {
-        if !self.is_claiming_window_expired() || !self.is_resolved() {
+        if !self.is_claiming_window_expired() {
             env::panic_str("ERR_CANNOT_CLAIM_FEES_OF_RESOLVED_MARKET_BEFORE_WINDOW_EXPIRATION");
         }
 

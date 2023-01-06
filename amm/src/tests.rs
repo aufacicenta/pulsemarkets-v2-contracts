@@ -617,8 +617,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "ERR_MARKET_NOT_RESOLVED")]
-    fn test_sell_error_if_event_is_not_resolved() {
+    fn test_sell_unresolved_market() {
         let mut context = setup_context();
 
         let mut collateral_token_balance: WrappedBalance = 0.0;
@@ -661,6 +660,8 @@ mod tests {
             .build());
         let alice_balance = contract.balance_of(yes, alice());
         sell(&mut contract, alice(), alice_balance, yes, &context);
+
+        assert_eq!(contract.balance_of(yes, alice()), 0.0);
     }
 
     #[test]
