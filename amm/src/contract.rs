@@ -309,6 +309,29 @@ impl Market {
 }
 
 impl Market {
+    fn aggregator_read(&mut self, ix: Ix) -> Promise {
+        Promise::new(SWITCHBOARD_PROGRAM_ID.parse().unwrap())
+            .function_call(
+                "aggregator_read".into(),
+                json_buf!({
+                    "ix": {
+                        "address": ix.address,
+                        "payer": ix.address,
+                    }
+                }),
+                near_sdk::ONE_YOCTO,
+                near_sdk::Gas(8_000_000_000_000), // WHAT IF GAS RUNS OUT?? need to make sure enough?
+            )
+            .then(
+                Promise::new(near_sdk::env::current_account_id()).function_call(
+                    "callback".into(),
+                    json_buf!({}),
+                    near_sdk::ONE_YOCTO,
+                    near_sdk::Gas(8_000_000_000_000), // WHAT IF GAS RUNS OUT?? need to make sure enough?
+                ),
+            )
+    }
+
     fn burn_the_losers(&mut self, outcome_id: OutcomeId) {
         for id in 0..self.market.options.len() {
             let mut outcome_token = self.get_outcome_token(id as OutcomeId);
