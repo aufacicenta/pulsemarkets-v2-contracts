@@ -20,6 +20,8 @@ pub type Weight = f32;
 pub struct MarketData {
     pub description: String,
     pub info: String,
+    // For price markets, we compare this value with the Oracles' outcome
+    pub price: f64,
     pub category: Option<String>,
     pub options: Vec<String>,
     // Datetime nanos: the market is open
@@ -52,6 +54,8 @@ pub struct Market {
     // Time to free up the market
     // Maps to check if fee has been paid for AccountId
     pub fees: Fees,
+    // Resolution
+    pub resolution: Resolution,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -95,6 +99,11 @@ pub struct Fees {
     pub claiming_window: Option<Timestamp>,
 }
 
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+pub struct Resolution {
+    pub ix: Ix,
+}
+
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
 pub struct PriceHistory {
     pub timestamp: u64,
@@ -120,7 +129,7 @@ pub enum Payload {
     BuyArgs(BuyArgs),
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
 pub struct Ix {
     pub address: [u8; 32],
 }

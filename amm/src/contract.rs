@@ -2,17 +2,11 @@ use near_sdk::collections::LookupMap;
 use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
 use near_sdk::{env, ext_contract, log, near_bindgen, AccountId, Promise, ONE_YOCTO};
-use std::default::Default;
 use sbv2_near::SWITCHBOARD_PROGRAM_ID;
+use std::default::Default;
 
 use crate::consts::*;
 use crate::storage::*;
-
-macro_rules! json_buf {
-    ($x:tt) => {
-        json!($x).to_string().as_bytes().to_vec()
-    };
-}
 
 #[ext_contract(ext_switchboard)]
 trait Switchboard {
@@ -41,6 +35,7 @@ impl Market {
         fee_ratio: WrappedBalance,
         // @TODO collateral_token_decimals should be set by a cross-contract call to ft_metadata, otherwise the system can be tamed
         collateral_token_decimals: u8,
+        resolution: Resolution,
     ) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
@@ -73,6 +68,7 @@ impl Market {
                 market_publisher_fees: LookupMap::new(StorageKeys::MarketPublisherFees),
                 claiming_window: None,
             },
+            resolution,
         }
     }
 
@@ -264,17 +260,13 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn resolve(&mut self, outcome_id: OutcomeId) {
+    pub fn resolve(&mut self) -> Promise {
         self.assert_only_owner();
         self.assert_is_published();
         self.assert_is_not_resolved();
-        self.assert_is_valid_outcome(outcome_id);
-
         self.assert_is_resolution_window_open();
 
-        self.burn_the_losers(outcome_id);
-
-        self.resolved_at = Some(self.get_block_timestamp());
+        self.aggregator_read()
     }
 
     #[private]
@@ -321,29 +313,9 @@ impl Market {
         self.collateral_token.fee_balance += amount;
         self.collateral_token.fee_balance
     }
-}
 
-impl Market {
-    fn aggregator_read(&mut self, ix: Ix) -> Promise {
-        let promise = ext_switchboard::ext(SWITCHBOARD_PROGRAM_ID.parse().unwrap())
-            .with_attached_deposit(ONE_YOCTO)
-            .with_static_gas(GAS_SB_AGGREGATOR_READ)
-            .aggregator_read(json_buf!({
-                "ix": {
-                    "address": ix.address,
-                    "payer": ix.address,
-                }
-            }));
-
-        promise.then(
-            ext_self::ext(env::current_account_id())
-                .with_static_gas(GAS_SB_AGGREGATOR_READ_CALLBACK)
-                .with_attached_deposit(0)
-                .on_aggregator_read_callback(),
-        )
-    }
-
-    fn burn_the_losers(&mut self, outcome_id: OutcomeId) {
+    #[private]
+    pub fn burn_the_losers(&mut self, outcome_id: OutcomeId) {
         for id in 0..self.market.options.len() {
             let mut outcome_token = self.get_outcome_token(id as OutcomeId);
             if outcome_token.outcome_id != outcome_id {
@@ -352,6 +324,32 @@ impl Market {
                     .insert(&(id as OutcomeId), &outcome_token);
             }
         }
+    }
+}
+
+impl Market {
+    fn aggregator_read(&mut self) -> Promise {
+        let promise = ext_switchboard::ext(SWITCHBOARD_PROGRAM_ID.parse().unwrap())
+            .with_attached_deposit(ONE_YOCTO)
+            .with_static_gas(GAS_SB_AGGREGATOR_READ)
+            .aggregator_read(
+                json!({
+                    "ix": {
+                        "address": self.resolution.ix.address,
+                        "payer": self.resolution.ix.address,
+                    }
+                })
+                .to_string()
+                .as_bytes()
+                .to_vec(),
+            );
+
+        promise.then(
+            ext_self::ext(env::current_account_id())
+                .with_static_gas(GAS_SB_AGGREGATOR_READ_CALLBACK)
+                .with_attached_deposit(0)
+                .on_aggregator_read_callback(),
+        )
     }
 
     fn create_outcome_token(&mut self, outcome_id: OutcomeId) {
