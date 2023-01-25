@@ -119,3 +119,8 @@ pub struct BuyArgs {
 pub enum Payload {
     BuyArgs(BuyArgs),
 }
+
+#[derive(Deserialize, Serialize)]
+pub struct Ix {
+    pub address: [u8; 32],
+}

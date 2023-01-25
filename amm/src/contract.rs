@@ -1,11 +1,28 @@
 use near_sdk::collections::LookupMap;
 use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen, AccountId, Promise};
+use near_sdk::{env, ext_contract, log, near_bindgen, AccountId, Promise, ONE_YOCTO};
 use std::default::Default;
+use sbv2_near::SWITCHBOARD_PROGRAM_ID;
 
 use crate::consts::*;
 use crate::storage::*;
+
+macro_rules! json_buf {
+    ($x:tt) => {
+        json!($x).to_string().as_bytes().to_vec()
+    };
+}
+
+#[ext_contract(ext_switchboard)]
+trait Switchboard {
+    fn aggregator_read(&mut self, ix: Vec<u8>);
+}
+
+#[ext_contract(ext_self)]
+trait Callbacks {
+    fn on_aggregator_read_callback(&mut self);
+}
 
 impl Default for Market {
     fn default() -> Self {
@@ -253,8 +270,6 @@ impl Market {
         self.assert_is_not_resolved();
         self.assert_is_valid_outcome(outcome_id);
 
-        // @TODO what happens if the resolution window expires?
-        // Redeem is no longer possible? — Redeem is possible, but prices stay at their latest value
         self.assert_is_resolution_window_open();
 
         self.burn_the_losers(outcome_id);
@@ -310,26 +325,22 @@ impl Market {
 
 impl Market {
     fn aggregator_read(&mut self, ix: Ix) -> Promise {
-        Promise::new(SWITCHBOARD_PROGRAM_ID.parse().unwrap())
-            .function_call(
-                "aggregator_read".into(),
-                json_buf!({
-                    "ix": {
-                        "address": ix.address,
-                        "payer": ix.address,
-                    }
-                }),
-                near_sdk::ONE_YOCTO,
-                near_sdk::Gas(8_000_000_000_000), // WHAT IF GAS RUNS OUT?? need to make sure enough?
-            )
-            .then(
-                Promise::new(near_sdk::env::current_account_id()).function_call(
-                    "callback".into(),
-                    json_buf!({}),
-                    near_sdk::ONE_YOCTO,
-                    near_sdk::Gas(8_000_000_000_000), // WHAT IF GAS RUNS OUT?? need to make sure enough?
-                ),
-            )
+        let promise = ext_switchboard::ext(SWITCHBOARD_PROGRAM_ID.parse().unwrap())
+            .with_attached_deposit(ONE_YOCTO)
+            .with_static_gas(GAS_SB_AGGREGATOR_READ)
+            .aggregator_read(json_buf!({
+                "ix": {
+                    "address": ix.address,
+                    "payer": ix.address,
+                }
+            }));
+
+        promise.then(
+            ext_self::ext(env::current_account_id())
+                .with_static_gas(GAS_SB_AGGREGATOR_READ_CALLBACK)
+                .with_attached_deposit(0)
+                .on_aggregator_read_callback(),
+        )
     }
 
     fn burn_the_losers(&mut self, outcome_id: OutcomeId) {

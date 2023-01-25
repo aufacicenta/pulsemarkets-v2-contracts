@@ -1,4 +1,6 @@
 use near_sdk::{env, log, near_bindgen, AccountId, PromiseResult};
+use serde_json;
+use sbv2_near::AggregatorRound;
 
 use crate::storage::*;
 
@@ -60,6 +62,23 @@ impl Market {
         match env::promise_result(0) {
             PromiseResult::Successful(_res) => {}
             _ => env::panic_str("ERR_CREATE_PROPOSAL_UNSUCCESSFUL"),
+        }
+    }
+
+    #[private]
+    pub fn on_aggregator_read_callback(&mut self) {
+        let maybe_round = near_sdk::env::promise_result(0);
+        if let PromiseResult::Successful(serialized_round) = maybe_round {
+            let round: AggregatorRound = serde_json::from_slice(&serialized_round).unwrap();
+            let outcome_id: OutcomeId = round.result.try_into().unwrap();
+
+            log!("Feed value: {:?}", outcome_id);
+
+            self.burn_the_losers(outcome_id);
+
+            self.resolved_at = Some(self.get_block_timestamp());
+        } else {
+            log!("error");
         }
     }
 }
