@@ -645,10 +645,6 @@ mod tests {
             date(ends_at),
         );
 
-        // let resolutin = Resolution {
-        //     window: date(ends_at )
-        // }
-
         let mut contract: Market = setup_contract(market_data, None);
         create_outcome_tokens(&mut contract);
 
@@ -659,6 +655,10 @@ mod tests {
             400.0,
             yes,
         );
+
+        // Bypass the self.is_over check
+        let now = ends_at + Duration::hours(1);
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
 
         let alice_balance = contract.balance_of(yes, alice());
         sell(&mut contract, alice(), alice_balance, yes, &context);
