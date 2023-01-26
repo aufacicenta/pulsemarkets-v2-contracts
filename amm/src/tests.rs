@@ -17,6 +17,8 @@ mod tests {
         84, 225, 222, 198, 48, 70, 49, 212, 195, 84, 136, 96, 56,
     ];
 
+    const DEFAULT_PRICE: f64 = 20000.00;
+
     fn daniel() -> AccountId {
         AccountId::new_unchecked("daniel.near".to_string())
     }
@@ -155,7 +157,7 @@ mod tests {
         MarketData {
             description,
             info: "".to_string(),
-            price: 20000.00,
+            price: DEFAULT_PRICE,
             category: None,
             options: (0..options).map(|s| s.to_string()).collect(),
             starts_at,
@@ -648,7 +650,7 @@ mod tests {
 
         // Resolve the market: YES, price is above average
         let mut aggregator_round = build_aggregator_round();
-        aggregator_round.result = SwitchboardDecimal::from_f64(20000.01);
+        aggregator_round.result = SwitchboardDecimal::from_f64(DEFAULT_PRICE + 1.0);
 
         let aggregator_round_bytes = serde_json::to_string(&aggregator_round).unwrap();
 

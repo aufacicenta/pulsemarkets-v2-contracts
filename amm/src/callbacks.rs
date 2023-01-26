@@ -73,18 +73,19 @@ impl Market {
                 // @TODO some aggregator values may not be f64?
                 let result: f64 = round.result.try_into().unwrap();
 
-                log!("Feed value: {:?}", result);
+                log!("aggregator_read value: {:?}", result);
 
                 // @TODO this logic will only work for yes/no markets where value IS GREATER than,
                 // eg. will Bitcoin be above 20,000.00 in Sept 28?
                 // In the future, we may create markets by using different factories or by using a MarketType enum
                 // NOTE: self.market.options MUST always start with YES then NO
                 if self.market.price > result {
-                    self.burn_the_losers(0);
-                } else {
                     self.burn_the_losers(1);
+                } else {
+                    self.burn_the_losers(0);
                 }
 
+                // @TODO once a market is resolved, and the claiming window is over, we can reset the same contract to be a new market
                 self.resolved_at = Some(self.get_block_timestamp());
             }
             _ => env::panic_str("ERR_ON_AGGREGATOR_READ_CALLBACK"),
