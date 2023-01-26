@@ -32,25 +32,6 @@ impl Market {
         }
     }
 
-    #[private]
-    pub fn on_create_proposals_callback(&mut self) -> bool {
-        match env::promise_result(0) {
-            PromiseResult::Successful(_res) => {
-                self.published_at = Some(self.get_block_timestamp());
-                // add 3 days after published_at
-                self.resolution_window = Some(self.get_block_timestamp() + 259200 * 1_000_000_000);
-                // add 30 days after resolution_window
-                self.fees.claiming_window =
-                    Some(self.resolution_window() + 2592000 * 1_000_000_000);
-
-                self.market_publisher_account_id = Some(env::signer_account_id());
-
-                true
-            }
-            _ => env::panic_str("ERR_CREATE_PROPOSALS_UNSUCCESSFUL"),
-        }
-    }
-
     /**
      * Make sure that the market option proposal was created
      * Then create an NEP141 token, MOT

@@ -1,5 +1,4 @@
 use near_sdk::collections::LookupMap;
-use near_sdk::json_types::Base64VecU8;
 use near_sdk::serde_json::json;
 use near_sdk::{env, log, near_bindgen, AccountId, Promise};
 use std::default::Default;
@@ -18,43 +17,43 @@ impl Market {
     #[init]
     pub fn new(
         market: MarketData,
-        dao_account_id: AccountId,
-        collateral_token_account_id: AccountId,
-        market_creator_account_id: AccountId,
-        fee_ratio: WrappedBalance,
-        // @TODO collateral_token_decimals should be set by a cross-contract call to ft_metadata, otherwise the system can be tamed
-        collateral_token_decimals: u8,
+        resolution: Resolution,
+        management: Management,
+        collateral_token: CollateralToken,
+        fees: Fees,
     ) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
         }
 
-        // @TODO assert at least 2 options
+        if market.options.len() < 2 {
+            env::panic_str("ERR_NEW_INSUFFICIENT_MARKET_OPTIONS");
+        }
+
+        let resolution_window = resolution.window;
 
         Self {
             market,
             collateral_token: CollateralToken {
-                id: collateral_token_account_id,
                 balance: 0.0,
                 fee_balance: 0.0,
-                decimals: collateral_token_decimals,
+                // @TODO collateral_token_decimals should be set by a cross-contract call to ft_metadata, otherwise the system can be tamed
+                ..collateral_token
             },
-            dao_account_id,
-            // @TODO change to testnet address on release
-            staking_token_account_id: AccountId::new_unchecked("pulse.fakes.testnet".to_string()),
-            market_creator_account_id,
-            market_publisher_account_id: None,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
-            // @TODO move fee_ratio to Fees
-            fee_ratio,
-            resolution_window: None,
-            published_at: None,
-            resolved_at: None,
+            resolution,
+            management: Management {
+                staking_token_account_id: Some(AccountId::new_unchecked(
+                    STAKING_TOKEN_ACCOUNT_ID.to_string(),
+                )),
+                ..management
+            },
             fees: Fees {
-                staking_fees: LookupMap::new(StorageKeys::StakingFees),
-                market_creator_fees: LookupMap::new(StorageKeys::MarketCreatorFees),
-                market_publisher_fees: LookupMap::new(StorageKeys::MarketPublisherFees),
-                claiming_window: None,
+                staking_fees: Some(LookupMap::new(StorageKeys::StakingFees)),
+                market_creator_fees: Some(LookupMap::new(StorageKeys::MarketCreatorFees)),
+                // @TODO set to less time, currently 30 days after resolution window
+                claiming_window: Some(resolution_window + 2592000 * 1_000_000_000),
+                ..fees
             },
         }
     }
@@ -72,72 +71,6 @@ impl Market {
                 self.market.options.len()
             }
         }
-    }
-
-    /**
-     * Creates market options Sputnik2 DAO proposals
-     * Creates an OT per each proposal
-     *
-     * The units of each OT is 0 until each is minted on the presale
-     * The initial price of each unit is set to: 1 / self.market.options.len()
-     *
-     * @notice called by the MarketFactory contract only and only once
-     * @notice publishes the market, does not mean it is open
-     * @notice a market is open during the start_date and end_date period
-     * @returns
-     */
-    #[payable]
-    pub fn publish(&mut self) -> Promise {
-        self.assert_is_not_published();
-
-        if !self.is_over() {
-            env::panic_str("ERR_PUBLISH_MARKET_IS_NOT_OVER");
-        }
-
-        let mut outcome_id = 0;
-        let options = &self.market.options.clone();
-        let mut promise: Promise = Promise::new(self.dao_account_id.clone());
-
-        for outcome in options {
-            let args = Base64VecU8(json!({ "outcome_id": outcome_id }).to_string().into_bytes());
-
-            promise = promise.function_call(
-                "add_proposal".to_string(),
-                json!({
-                    "proposal": {
-                        "description": format!("{}\nOutcome: {}",
-                            self.market.description,
-                            outcome),
-                        "kind": {
-                            "FunctionCall": {
-                                "receiver_id": env::current_account_id(),
-                                "actions": [{
-                                    "args": args,
-                                    "deposit": "0", // @TODO
-                                    "gas": "150000000000000", // @TODO
-                                    "method_name": "resolve",
-                                }]
-                            }
-                        }
-                    }
-                })
-                .to_string()
-                .into_bytes(),
-                BALANCE_PROPOSAL_BOND,
-                GAS_CREATE_DAO_PROPOSAL,
-            );
-
-            outcome_id += 1;
-        }
-
-        let callback = Promise::new(env::current_account_id()).function_call(
-            "on_create_proposals_callback".to_string(),
-            json!({}).to_string().into_bytes(),
-            0,
-            GAS_CREATE_DAO_PROPOSAL_CALLBACK,
-        );
-
-        promise.then(callback)
     }
 
     /**
@@ -227,7 +160,6 @@ impl Market {
             return self.internal_sell(outcome_id, amount);
         }
 
-        self.assert_is_published();
         self.assert_is_not_under_resolution();
         self.assert_is_resolved();
 
@@ -248,8 +180,8 @@ impl Market {
      */
     #[payable]
     pub fn resolve(&mut self, outcome_id: OutcomeId) {
+        // @TODO owner will now be the aggregator Ix address set only at creation
         self.assert_only_owner();
-        self.assert_is_published();
         self.assert_is_not_resolved();
         self.assert_is_valid_outcome(outcome_id);
 
@@ -259,7 +191,7 @@ impl Market {
 
         self.burn_the_losers(outcome_id);
 
-        self.resolved_at = Some(self.get_block_timestamp());
+        self.resolution.resolved_at = Some(self.get_block_timestamp());
     }
 
     #[private]

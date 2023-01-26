@@ -39,10 +39,6 @@ mod tests {
         AccountId::new_unchecked("market_creator_account_id.near".to_string())
     }
 
-    fn market_publisher_account_id() -> AccountId {
-        AccountId::new_unchecked("market_publisher_account_id.near".to_string())
-    }
-
     fn date(date: chrono::DateTime<chrono::Utc>) -> i64 {
         date.timestamp_nanos().try_into().unwrap()
     }
@@ -62,15 +58,38 @@ mod tests {
         context
     }
 
-    fn setup_contract(market: MarketData) -> Market {
-        let contract = Market::new(
-            market,
-            dao_account_id(),
-            collateral_token_id(),
-            market_creator_account_id(),
-            LP_FEE,
-            6,
-        );
+    fn setup_contract(market: MarketData, res: Option<Resolution>) -> Market {
+        let mut resolution = Resolution {
+            // 3 days
+            window: market.ends_at + 259200 * 1_000_000_000,
+            resolved_at: None,
+        };
+
+        if let Some(res) = res {
+            resolution.window = res.window;
+        }
+
+        let management = Management {
+            dao_account_id: dao_account_id(),
+            staking_token_account_id: None,
+            market_creator_account_id: market_creator_account_id(),
+        };
+
+        let collateral_token = CollateralToken {
+            id: collateral_token_id(),
+            balance: 0.0,
+            decimals: 6,
+            fee_balance: 0.0,
+        };
+
+        let fees = Fees {
+            staking_fees: None,
+            market_creator_fees: None,
+            claiming_window: None,
+            fee_ratio: LP_FEE,
+        };
+
+        let contract = Market::new(market, resolution, management, collateral_token, fees);
 
         contract
     }
@@ -120,20 +139,6 @@ mod tests {
         c.create_outcome_tokens();
     }
 
-    fn publish(c: &mut Market, context: &VMContextBuilder) {
-        c.publish();
-
-        testing_env!(
-            context.build(),
-            near_sdk::VMConfig::test(),
-            near_sdk::RuntimeFeesConfig::test(),
-            Default::default(),
-            vec![PromiseResult::Successful(vec![])],
-        );
-
-        c.on_create_proposals_callback();
-    }
-
     fn create_market_data(
         description: String,
         options: u8,
@@ -152,57 +157,6 @@ mod tests {
     }
 
     #[test]
-    fn test_publish_binary_market() {
-        let mut context = setup_context();
-
-        let now = Utc::now();
-        testing_env!(context.block_timestamp(block_timestamp(now)).build());
-        let starts_at = now + Duration::hours(1);
-        let ends_at = starts_at + Duration::hours(1);
-
-        let market_data: MarketData = create_market_data(
-            "a market description".to_string(),
-            2,
-            date(starts_at),
-            date(ends_at),
-        );
-
-        let mut contract: Market = setup_contract(market_data);
-        create_outcome_tokens(&mut contract);
-
-        let now = ends_at + Duration::hours(1);
-        testing_env!(context
-            .block_timestamp(block_timestamp(now))
-            .signer_account_id(market_publisher_account_id())
-            .build());
-        publish(&mut contract, &context);
-
-        assert_eq!(contract.is_published(), true);
-        assert_eq!(contract.is_claiming_window_expired(), false);
-        assert_eq!(contract.is_resolution_window_expired(), false);
-        assert_eq!(
-            contract.resolution_window(),
-            (block_timestamp(now) + 259200 * 1_000_000_000) as i64
-        );
-        assert_eq!(
-            contract.claiming_window(),
-            (contract.resolution_window() + 2592000 * 1_000_000_000) as i64
-        );
-        assert_eq!(
-            contract.get_market_publisher_account_id(),
-            market_publisher_account_id()
-        );
-
-        let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
-        let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
-
-        assert_eq!(outcome_token_0.total_supply(), 0.0);
-        assert_eq!(outcome_token_1.total_supply(), 0.0);
-        assert_eq!(outcome_token_0.get_price(), 0.5);
-        assert_eq!(outcome_token_1.get_price(), 0.5);
-    }
-
-    #[test]
     fn test_create_outcome_tokens() {
         let mut context = setup_context();
 
@@ -218,7 +172,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        let mut contract: Market = setup_contract(market_data, None);
         create_outcome_tokens(&mut contract);
 
         let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
@@ -246,7 +200,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        let mut contract: Market = setup_contract(market_data, None);
 
         create_outcome_tokens(&mut contract);
 
@@ -279,7 +233,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        let mut contract: Market = setup_contract(market_data, None);
 
         create_outcome_tokens(&mut contract);
 
@@ -320,7 +274,9 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        let mut contract: Market = setup_contract(market_data, None);
+        let now = ends_at + Duration::days(1);
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
         create_outcome_tokens(&mut contract);
 
         testing_env!(context
@@ -410,12 +366,6 @@ mod tests {
 
         assert_eq!(contract.get_collateral_token_metadata().balance, 1300.0);
 
-        // @TODO publish may also be made by a CT ft_on_transfer
-        // Publish after the market is over
-        let now = ends_at + Duration::days(1);
-        testing_env!(context.block_timestamp(block_timestamp(now)).build());
-        publish(&mut contract, &context);
-
         // Resolve the market: Burn the losers
         testing_env!(context.predecessor_account_id(dao_account_id()).build());
         resolve(&mut contract, &mut collateral_token_balance, yes);
@@ -484,7 +434,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        let mut contract: Market = setup_contract(market_data, None);
         create_outcome_tokens(&mut contract);
 
         testing_env!(context
@@ -509,11 +459,6 @@ mod tests {
             100.0,
             no,
         );
-
-        // Publish after the market is over
-        let now = ends_at + Duration::days(1);
-        testing_env!(context.block_timestamp(block_timestamp(now)).build());
-        publish(&mut contract, &context);
 
         // Resolve the market: Burn the losers
         testing_env!(context.predecessor_account_id(dao_account_id()).build());
@@ -552,7 +497,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        let mut contract: Market = setup_contract(market_data, None);
 
         create_outcome_tokens(&mut contract);
 
@@ -596,7 +541,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        let mut contract: Market = setup_contract(market_data, None);
         create_outcome_tokens(&mut contract);
 
         testing_env!(context
@@ -636,7 +581,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        let mut contract: Market = setup_contract(market_data, None);
         create_outcome_tokens(&mut contract);
 
         buy(
@@ -646,13 +591,6 @@ mod tests {
             400.0,
             yes,
         );
-
-        let now = ends_at + Duration::hours(1);
-        testing_env!(context
-            .block_timestamp(block_timestamp(now))
-            .signer_account_id(alice())
-            .build());
-        publish(&mut contract, &context);
 
         testing_env!(context
             .block_timestamp(block_timestamp(now + Duration::days(4)))
@@ -681,7 +619,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        let mut contract: Market = setup_contract(market_data, None);
         create_outcome_tokens(&mut contract);
         create_outcome_tokens(&mut contract);
     }
@@ -707,7 +645,11 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        // let resolutin = Resolution {
+        //     window: date(ends_at )
+        // }
+
+        let mut contract: Market = setup_contract(market_data, None);
         create_outcome_tokens(&mut contract);
 
         buy(
@@ -717,13 +659,6 @@ mod tests {
             400.0,
             yes,
         );
-
-        let now = ends_at + Duration::hours(1);
-        testing_env!(context
-            .block_timestamp(block_timestamp(now))
-            .signer_account_id(alice())
-            .build());
-        publish(&mut contract, &context);
 
         let alice_balance = contract.balance_of(yes, alice());
         sell(&mut contract, alice(), alice_balance, yes, &context);
@@ -745,7 +680,7 @@ mod tests {
             date(ends_at),
         );
 
-        let mut contract: Market = setup_contract(market_data);
+        let mut contract: Market = setup_contract(market_data, None);
         create_outcome_tokens(&mut contract);
 
         testing_env!(

@@ -9,7 +9,7 @@ impl Market {
     }
 
     pub fn get_fee_ratio(&self) -> WrappedBalance {
-        self.fee_ratio
+        self.fees.fee_ratio
     }
 
     pub fn get_price_ratio(&self, outcome_id: OutcomeId) -> PriceRatio {
@@ -46,51 +46,27 @@ impl Market {
         self.collateral_token.clone()
     }
 
-    pub fn dao_account_id(&self) -> AccountId {
-        self.dao_account_id.clone()
-    }
-
-    pub fn get_market_publisher_account_id(&self) -> AccountId {
-        match &self.market_publisher_account_id {
-            Some(account_id) => account_id.clone(),
-            None => env::panic_str("ERR_MARKET_PUBLISHER_ACCOUNT_ID_NOT_SET"),
-        }
-    }
-
     pub fn get_market_creator_account_id(&self) -> AccountId {
-        self.market_creator_account_id.clone()
+        self.management.market_creator_account_id.clone()
     }
 
-    pub fn published_at(&self) -> Timestamp {
-        match self.published_at {
-            Some(timestamp) => timestamp,
-            None => env::panic_str("ERR_PUBLISHED_AT"),
-        }
+    pub fn dao_account_id(&self) -> AccountId {
+        self.management.dao_account_id.clone()
     }
 
     pub fn resolution_window(&self) -> Timestamp {
-        match self.resolution_window {
-            Some(timestamp) => timestamp,
-            None => env::panic_str("ERR_RESOLUTION_WINDOW_NOT_SET"),
-        }
+        self.resolution.window
     }
 
     pub fn resolved_at(&self) -> Timestamp {
-        match self.resolved_at {
+        match self.resolution.resolved_at {
             Some(timestamp) => timestamp,
             None => env::panic_str("ERR_RESOLVED_AT"),
         }
     }
 
-    pub fn is_published(&self) -> bool {
-        match self.published_at {
-            Some(_) => true,
-            None => false,
-        }
-    }
-
     pub fn is_resolved(&self) -> bool {
-        match self.resolved_at {
+        match self.resolution.resolved_at {
             Some(_) => true,
             None => false,
         }
@@ -125,10 +101,7 @@ impl Market {
     }
 
     pub fn is_resolution_window_expired(&self) -> bool {
-        match self.resolution_window {
-            Some(timestamp) => self.get_block_timestamp() > timestamp,
-            None => false,
-        }
+        self.get_block_timestamp() > self.resolution.window
     }
 
     pub fn balance_of(&self, outcome_id: OutcomeId, account_id: AccountId) -> WrappedBalance {

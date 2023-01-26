@@ -35,23 +35,11 @@ pub struct MarketData {
 pub struct Market {
     pub market: MarketData,
     pub collateral_token: CollateralToken,
-    pub dao_account_id: AccountId,
-    pub staking_token_account_id: AccountId,
-    pub market_creator_account_id: AccountId,
-    pub market_publisher_account_id: Option<AccountId>,
+    pub fees: Fees,
+    pub resolution: Resolution,
+    pub management: Management,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
-    // Decimal fee to charge upon a bet
-    pub fee_ratio: WrappedBalance,
-    // When the market is published
-    pub published_at: Option<Timestamp>,
-    // When the market is published
-    pub resolved_at: Option<Timestamp>,
-    // Time to free up the market
-    pub resolution_window: Option<Timestamp>,
-    // Time to free up the market
-    // Maps to check if fee has been paid for AccountId
-    pub fees: Fees,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -87,12 +75,33 @@ pub struct CollateralToken {
     pub fee_balance: WrappedBalance,
 }
 
-#[derive(BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
 pub struct Fees {
-    pub staking_fees: LookupMap<AccountId, String>,
-    pub market_creator_fees: LookupMap<AccountId, String>,
-    pub market_publisher_fees: LookupMap<AccountId, String>,
+    #[serde(skip_serializing)]
+    pub staking_fees: Option<LookupMap<AccountId, String>>,
+    #[serde(skip_serializing)]
+    pub market_creator_fees: Option<LookupMap<AccountId, String>>,
     pub claiming_window: Option<Timestamp>,
+    // Decimal fee to charge upon a bet
+    pub fee_ratio: WrappedBalance,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+pub struct Resolution {
+    // Time to free up the market
+    pub window: Timestamp,
+    // When the market is resolved, set only by fn resolve
+    pub resolved_at: Option<Timestamp>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+pub struct Management {
+    // Gets sent fees when claiming window is open
+    pub dao_account_id: AccountId,
+    // Sends fees to stakers (eg. $PULSE NEP141)
+    pub staking_token_account_id: Option<AccountId>,
+    // Gets fees for creating a market
+    pub market_creator_account_id: AccountId,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
@@ -106,7 +115,6 @@ pub enum StorageKeys {
     OutcomeTokens,
     StakingFees,
     MarketCreatorFees,
-    MarketPublisherFees,
 }
 
 #[derive(Serialize, Deserialize)]
