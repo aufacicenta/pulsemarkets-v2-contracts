@@ -92,6 +92,8 @@ pub struct Resolution {
     pub window: Timestamp,
     // When the market is resolved, set only by fn resolve
     pub resolved_at: Option<Timestamp>,
+    // Unit8ByteArray with the immutable Aggregator address, this is the "is_owner" condition to resolve the market
+    pub ix: Ix,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
@@ -126,4 +128,9 @@ pub struct BuyArgs {
 #[derive(Serialize, Deserialize)]
 pub enum Payload {
     BuyArgs(BuyArgs),
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+pub struct Ix {
+    pub address: [u8; 32],
 }

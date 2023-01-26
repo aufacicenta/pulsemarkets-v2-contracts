@@ -11,6 +11,11 @@ mod tests {
 
     const LP_FEE: WrappedBalance = 0.02;
 
+    const IX_ADDRESS: [u8; 32] = [
+        173, 62, 255, 125, 45, 251, 162, 167, 128, 129, 25, 33, 146, 248, 118, 134, 118, 192, 215,
+        84, 225, 222, 198, 48, 70, 49, 212, 195, 84, 136, 96, 56,
+    ];
+
     fn daniel() -> AccountId {
         AccountId::new_unchecked("daniel.near".to_string())
     }
@@ -59,10 +64,15 @@ mod tests {
     }
 
     fn setup_contract(market: MarketData, res: Option<Resolution>) -> Market {
+        let ix: Ix = Ix {
+            address: IX_ADDRESS,
+        };
+
         let mut resolution = Resolution {
             // 3 days
             window: market.ends_at + 259200 * 1_000_000_000,
             resolved_at: None,
+            ix,
         };
 
         if let Some(res) = res {
@@ -129,8 +139,21 @@ mod tests {
         return amount;
     }
 
-    fn resolve(c: &mut Market, collateral_token_balance: &mut WrappedBalance, outcome_id: u64) {
-        c.resolve(outcome_id);
+    fn resolve(
+        c: &mut Market,
+        collateral_token_balance: &mut WrappedBalance,
+        outcome_id: u64,
+        instruction: Option<Ix>,
+    ) {
+        let mut ix: Ix = Ix {
+            address: IX_ADDRESS,
+        };
+
+        if let Some(inst) = instruction {
+            ix.address = inst.address;
+        }
+
+        c.resolve(outcome_id, ix);
         let balance = *collateral_token_balance;
         *collateral_token_balance -= balance * c.get_fee_ratio();
     }
@@ -368,7 +391,7 @@ mod tests {
 
         // Resolve the market: Burn the losers
         testing_env!(context.predecessor_account_id(dao_account_id()).build());
-        resolve(&mut contract, &mut collateral_token_balance, yes);
+        resolve(&mut contract, &mut collateral_token_balance, yes, None);
         let outcome_token_no = contract.get_outcome_token(no);
         assert_eq!(outcome_token_no.is_active(), false);
         assert_eq!(outcome_token_no.total_supply(), 0.0);
@@ -462,7 +485,7 @@ mod tests {
 
         // Resolve the market: Burn the losers
         testing_env!(context.predecessor_account_id(dao_account_id()).build());
-        resolve(&mut contract, &mut collateral_token_balance, yes);
+        resolve(&mut contract, &mut collateral_token_balance, yes, None);
 
         // Resolution window is over
         let now = now + Duration::days(4);
@@ -703,5 +726,39 @@ mod tests {
         // then convert to Collateral Token decimals precision
         assert_eq!(amount_payable, "1105000000");
         assert_eq!(contract.get_claimed_staking_fees(alice()), "1105000000");
+    }
+
+    #[test]
+    #[should_panic(expected = "ERR_SIGNER_IS_NOT_OWNER")]
+    fn test_signer_is_not_owner() {
+        let mut context = setup_context();
+
+        let mut collateral_token_balance: WrappedBalance = 0.0;
+
+        let yes = 0;
+
+        let now = Utc::now();
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
+        let starts_at = now + Duration::hours(1);
+        let ends_at = starts_at + Duration::hours(1);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            date(starts_at),
+            date(ends_at),
+        );
+
+        let mut contract: Market = setup_contract(market_data, None);
+        create_outcome_tokens(&mut contract);
+
+        let ix = Ix {
+            address: [
+                173, 62, 255, 125, 45, 251, 162, 167, 128, 129, 25, 33, 146, 248, 118, 134, 118,
+                192, 215, 84, 225, 222, 198, 48, 70, 49, 212, 195, 84, 136, 96, 33,
+            ],
+        };
+
+        resolve(&mut contract, &mut collateral_token_balance, yes, Some(ix));
     }
 }

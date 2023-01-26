@@ -179,9 +179,9 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn resolve(&mut self, outcome_id: OutcomeId) {
+    pub fn resolve(&mut self, outcome_id: OutcomeId, ix: Ix) {
         // @TODO owner will now be the aggregator Ix address set only at creation
-        self.assert_only_owner();
+        self.assert_only_owner(ix);
         self.assert_is_not_resolved();
         self.assert_is_valid_outcome(outcome_id);
 
