@@ -1,5 +1,4 @@
-use near_sdk::serde_json;
-use near_sdk::{env, log, near_bindgen, AccountId, PromiseResult};
+use near_sdk::{env, log, near_bindgen, serde_json, AccountId, PromiseResult};
 use sbv2_near::AggregatorRound;
 
 use crate::storage::*;
@@ -67,28 +66,28 @@ impl Market {
 
     #[private]
     pub fn on_aggregator_read_callback(&mut self) {
-        let maybe_round = near_sdk::env::promise_result(0);
-        if let PromiseResult::Successful(serialized_round) = maybe_round {
-            let round: AggregatorRound = serde_json::from_slice(&serialized_round).unwrap();
+        match env::promise_result(0) {
+            PromiseResult::Successful(serialized_round) => {
+                let round: AggregatorRound = serde_json::from_slice(&serialized_round).unwrap();
 
-            // @TODO some aggregator values may not be f64?
-            let result: f64 = round.result.try_into().unwrap();
+                // @TODO some aggregator values may not be f64?
+                let result: f64 = round.result.try_into().unwrap();
 
-            log!("Feed value: {:?}", result);
+                log!("Feed value: {:?}", result);
 
-            // @TODO this logic will only work for yes/no markets where value IS GREATER than,
-            // eg. will Bitcoin be above 20,000.00 in Sept 28?
-            // In the future, we may create markets by using different factories or by using a MarketType enum
-            // NOTE: self.market.options MUST always start with YES then NO
-            if self.market.price > result {
-                self.burn_the_losers(0);
-            } else {
-                self.burn_the_losers(1);
+                // @TODO this logic will only work for yes/no markets where value IS GREATER than,
+                // eg. will Bitcoin be above 20,000.00 in Sept 28?
+                // In the future, we may create markets by using different factories or by using a MarketType enum
+                // NOTE: self.market.options MUST always start with YES then NO
+                if self.market.price > result {
+                    self.burn_the_losers(0);
+                } else {
+                    self.burn_the_losers(1);
+                }
+
+                self.resolved_at = Some(self.get_block_timestamp());
             }
-
-            self.resolved_at = Some(self.get_block_timestamp());
-        } else {
-            log!("error");
+            _ => env::panic_str("ERR_ON_AGGREGATOR_READ_CALLBACK"),
         }
     }
 }
