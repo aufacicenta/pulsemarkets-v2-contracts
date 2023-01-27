@@ -9,10 +9,8 @@ use near_sdk::{
 pub type OutcomeId = u64;
 pub type Timestamp = i64;
 pub type LiquidityProvider = AccountId;
-pub type Price = f32;
-pub type PriceRatio = f32;
-pub type WrappedBalance = f32;
-pub type Weight = f32;
+pub type WrappedBalance = u128;
+pub type Weight = u128;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
@@ -53,16 +51,12 @@ pub struct OutcomeToken {
     // map `AccountId` to corresponding `Balance` in the market
     #[serde(skip_serializing)]
     pub balances: UnorderedMap<AccountId, WrappedBalance>,
-    // vec! of price history by block_timestamp
-    pub price_history: Vec<PriceHistory>,
     // keep the number of accounts with positive balance. Use for calculating the price_ratio
     pub accounts_length: u64,
     // total supply of this outcome_token
     pub total_supply: WrappedBalance,
     // the outcome this token represents, used for storage pointers
     pub outcome_id: OutcomeId,
-    // a value between 0 & 1
-    pub price: WrappedBalance,
     // can mint more tokens
     pub is_active: bool,
 }

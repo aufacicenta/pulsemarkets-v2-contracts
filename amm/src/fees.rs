@@ -1,3 +1,5 @@
+use near_contract_standards::fungible_token::core::ext_ft_core;
+use near_sdk::ext_contract;
 use near_sdk::{
     env, json_types::U128, log, near_bindgen, require, serde_json, AccountId, Promise,
     PromiseResult,
@@ -5,6 +7,18 @@ use near_sdk::{
 
 use crate::consts::*;
 use crate::storage::*;
+
+#[ext_contract(ext_self)]
+trait Callbacks {
+    fn on_claim_staking_fees_resolved_callback(
+        &mut self,
+        amount: WrappedBalance,
+        payee: AccountId,
+    ) -> String;
+    fn on_claim_market_creator_fees_resolved_callback(&mut self, payee: AccountId) -> String;
+    fn on_ft_balance_of_market_callback(&mut self) -> Promise;
+    fn on_ft_transfer_to_dao_callback(&mut self);
+}
 
 #[near_bindgen]
 impl Market {
@@ -49,7 +63,7 @@ impl Market {
                         let promises =
                             env::promise_and(&[ft_balance_of_promise, ft_total_supply_promise]);
 
-                        let amount = self.collateral_token.fee_balance * 0.15;
+                        let amount = (self.collateral_token.fee_balance * 15) / 100;
 
                         let callback = env::promise_then(
                             promises,
@@ -99,34 +113,17 @@ impl Market {
                     env::panic_str("ERR_CLAIM_MARKET_CREATOR_FEES_RESOLVED_NO_FEES_TO_CLAIM")
                 }
                 None => {
-                    let amount = self.collateral_token.fee_balance * 0.80;
-                    let precision = self.get_precision();
-                    let amount_payable = &(amount * precision.parse::<WrappedBalance>().unwrap());
+                    let amount_payable = (self.collateral_token.fee_balance * 85) / 100;
 
-                    let ft_transfer_promise = Promise::new(self.collateral_token.id.clone())
-                        .function_call(
-                            "ft_transfer".to_string(),
-                            serde_json::json!({
-                                "amount": amount_payable.to_string(),
-                                "receiver_id": payee
-                            })
-                            .to_string()
-                            .into_bytes(),
-                            FT_TRANSFER_BOND,
-                            GAS_FT_TRANSFER,
-                        );
+                    let ft_transfer_promise = ext_ft_core::ext(self.collateral_token.id.clone())
+                        .with_attached_deposit(FT_TRANSFER_BOND)
+                        .with_static_gas(GAS_FT_TRANSFER)
+                        .ft_transfer(payee.clone(), U128::from(amount_payable), None);
 
-                    let ft_transfer_callback_promise = Promise::new(env::current_account_id())
-                        .function_call(
-                            "on_claim_market_creator_fees_resolved_callback".to_string(),
-                            serde_json::json!({
-                                "payee": payee,
-                            })
-                            .to_string()
-                            .into_bytes(),
-                            0,
-                            GAS_FT_TRANSFER_CALLBACK,
-                        );
+                    let ft_transfer_callback_promise = ext_self::ext(env::current_account_id())
+                        .with_attached_deposit(0)
+                        .with_static_gas(GAS_FT_TRANSFER_CALLBACK)
+                        .on_claim_market_creator_fees_resolved_callback(payee);
 
                     ft_transfer_promise.then(ft_transfer_callback_promise);
                 }
@@ -149,23 +146,15 @@ impl Market {
             env::panic_str("ERR_CANNOT_CLAIM_FEES_OF_RESOLVED_MARKET_BEFORE_WINDOW_EXPIRATION");
         }
 
-        let ft_balance_of_promise = Promise::new(self.collateral_token.id.clone()).function_call(
-            "ft_balance_of".to_string(),
-            serde_json::json!({
-                "account_id": env::current_account_id(),
-            })
-            .to_string()
-            .into_bytes(),
-            0,
-            GAS_FT_BALANCE_OF,
-        );
+        let ft_balance_of_promise = ext_ft_core::ext(self.collateral_token.id.clone())
+            .with_attached_deposit(0)
+            .with_static_gas(GAS_FT_BALANCE_OF)
+            .ft_balance_of(env::current_account_id());
 
-        let ft_balance_of_callback_promise = Promise::new(env::current_account_id()).function_call(
-            "on_ft_balance_of_market_callback".to_string(),
-            serde_json::json!({}).to_string().into_bytes(),
-            0,
-            GAS_FT_BALANCE_OF_CALLBACK,
-        );
+        let ft_balance_of_callback_promise = ext_self::ext(env::current_account_id())
+            .with_attached_deposit(0)
+            .with_static_gas(GAS_FT_BALANCE_OF_CALLBACK)
+            .on_ft_balance_of_market_callback();
 
         ft_balance_of_promise.then(ft_balance_of_callback_promise)
     }
@@ -203,27 +192,18 @@ impl Market {
         );
 
         let weight = ft_balance_of / ft_total_supply;
-        let precision = self.get_precision();
-        let amount_payable = &((amount * weight) * precision.parse::<WrappedBalance>().unwrap());
+        let amount_payable = &amount * weight;
 
         log!(
-            "on_claim_staking_fees_resolved_callback weight: {}, precision: {}, amount_payable: {}",
+            "on_claim_staking_fees_resolved_callback weight: {}, amount_payable: {}",
             weight,
-            precision,
             amount_payable
         );
 
-        Promise::new(self.collateral_token.id.clone()).function_call(
-            "ft_transfer".to_string(),
-            serde_json::json!({
-                "amount": amount_payable.to_string(),
-                "receiver_id": payee
-            })
-            .to_string()
-            .into_bytes(),
-            FT_TRANSFER_BOND,
-            GAS_FT_TRANSFER,
-        );
+        ext_ft_core::ext(self.collateral_token.id.clone())
+            .with_attached_deposit(FT_TRANSFER_BOND)
+            .with_static_gas(GAS_FT_TRANSFER)
+            .ft_transfer(payee.clone(), U128::from(amount_payable), None);
 
         // @TODO callback of a failed transfer
 
@@ -272,24 +252,15 @@ impl Market {
             env::panic_str("ERR_ON_FT_BALANCE_OF_CALLBACK_BALANCE_IS_0");
         }
 
-        let ft_transfer_promise = Promise::new(self.collateral_token.id.clone()).function_call(
-            "ft_transfer".to_string(),
-            serde_json::json!({
-                "amount": ft_balance_of_result,
-                "receiver_id": self.dao_account_id()
-            })
-            .to_string()
-            .into_bytes(),
-            FT_TRANSFER_BOND,
-            GAS_FT_TRANSFER,
-        );
+        let ft_transfer_promise = ext_ft_core::ext(self.collateral_token.id.clone())
+            .with_attached_deposit(FT_TRANSFER_BOND)
+            .with_static_gas(GAS_FT_TRANSFER)
+            .ft_transfer(self.dao_account_id(), ft_balance_of_result, None);
 
-        let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
-            "on_ft_transfer_to_dao_callback".to_string(),
-            serde_json::json!({}).to_string().into_bytes(),
-            0,
-            GAS_FT_TRANSFER_CALLBACK,
-        );
+        let ft_transfer_callback_promise = ext_self::ext(env::current_account_id())
+            .with_attached_deposit(0)
+            .with_static_gas(GAS_FT_TRANSFER_CALLBACK)
+            .on_ft_transfer_to_dao_callback();
 
         ft_transfer_promise.then(ft_transfer_callback_promise)
     }
@@ -333,15 +304,5 @@ impl Market {
         }
 
         env::panic_str("ERR_CLAIMING_WINDOW_NOT_SET");
-    }
-
-    fn get_precision(&self) -> String {
-        let precision = format!(
-            "{:0<p$}",
-            10,
-            p = self.collateral_token.decimals as usize + 2
-        );
-
-        precision
     }
 }

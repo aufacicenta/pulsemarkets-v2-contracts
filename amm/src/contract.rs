@@ -1,10 +1,23 @@
 use near_sdk::collections::LookupMap;
-use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen, AccountId, Promise};
+use near_sdk::json_types::U128;
+use near_sdk::{env, ext_contract, log, near_bindgen, AccountId};
 use std::default::Default;
+
+use near_contract_standards::fungible_token::core::ext_ft_core;
 
 use crate::consts::*;
 use crate::storage::*;
+
+#[ext_contract(ext_self)]
+trait Callbacks {
+    fn on_ft_transfer_callback(
+        &mut self,
+        amount: WrappedBalance,
+        payee: AccountId,
+        outcome_id: OutcomeId,
+        amount_payable: WrappedBalance,
+    ) -> String;
+}
 
 impl Default for Market {
     fn default() -> Self {
@@ -35,8 +48,8 @@ impl Market {
         Self {
             market,
             collateral_token: CollateralToken {
-                balance: 0.0,
-                fee_balance: 0.0,
+                balance: 0,
+                fee_balance: 0,
                 // @TODO collateral_token_decimals should be set by a cross-contract call to ft_metadata, otherwise the system can be tamed
                 ..collateral_token
             },
@@ -65,8 +78,6 @@ impl Market {
                 for outcome_id in 0..self.market.options.len() {
                     self.create_outcome_token(outcome_id as u64);
                 }
-
-                self.assert_price_constant();
 
                 self.market.options.len()
             }
@@ -104,30 +115,24 @@ impl Market {
 
         let mut outcome_token = self.get_outcome_token(payload.outcome_id);
 
-        let (price, fee, exchange_rate, balance_boost, amount_mintable) =
-            self.get_amount_mintable(amount, payload.outcome_id);
+        let (amount_mintable, fee) = self.get_amount_mintable(amount);
 
-        log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, balance_boost: {}, amount_mintable: {}",
+        log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, amount_mintable: {}",
             amount,
-            self.get_fee_ratio(),
+            self.fees.fee_ratio,
             fee,
             outcome_token.outcome_id,
             sender_id,
             outcome_token.total_supply(),
-            price,
-            exchange_rate,
-            balance_boost,
             amount_mintable,
         );
 
         outcome_token.mint(&sender_id, amount_mintable);
-        self.update_ct_balance(amount);
+        self.update_ct_balance(self.collateral_token.balance + amount);
         self.update_ct_fee_balance(fee);
 
         self.outcome_tokens
             .insert(&payload.outcome_id, &outcome_token);
-
-        self.update_prices(payload.outcome_id, SetPriceOptions::Increase);
 
         return amount_mintable;
     }
@@ -180,13 +185,10 @@ impl Market {
      */
     #[payable]
     pub fn resolve(&mut self, outcome_id: OutcomeId, ix: Ix) {
-        // @TODO owner will now be the aggregator Ix address set only at creation
         self.assert_only_owner(ix);
         self.assert_is_not_resolved();
         self.assert_is_valid_outcome(outcome_id);
 
-        // @TODO what happens if the resolution window expires?
-        // Redeem is no longer possible? — Redeem is possible, but prices stay at their latest value
         self.assert_is_resolution_window_open();
 
         self.burn_the_losers(outcome_id);
@@ -195,41 +197,8 @@ impl Market {
     }
 
     #[private]
-    pub fn update_prices(&mut self, outcome_id: OutcomeId, set_price_option: SetPriceOptions) {
-        let price_ratio = self.get_price_ratio(outcome_id);
-
-        for id in 0..self.market.options.len() {
-            let mut outcome_token = self.get_outcome_token(id as OutcomeId);
-
-            // @TODO self.price_ratio may be updated so that it doesn't reach 1
-            if outcome_token.outcome_id == outcome_id {
-                match set_price_option {
-                    SetPriceOptions::Increase => {
-                        outcome_token.increase_price(price_ratio);
-                    }
-                    SetPriceOptions::Decrease => {
-                        outcome_token.decrease_price(price_ratio);
-                    }
-                }
-            } else {
-                match set_price_option {
-                    SetPriceOptions::Increase => {
-                        outcome_token.decrease_price(price_ratio);
-                    }
-                    SetPriceOptions::Decrease => {
-                        outcome_token.increase_price(price_ratio);
-                    }
-                }
-            }
-
-            self.outcome_tokens
-                .insert(&(id as OutcomeId), &outcome_token);
-        }
-    }
-
-    #[private]
     pub fn update_ct_balance(&mut self, amount: WrappedBalance) -> WrappedBalance {
-        self.collateral_token.balance += amount;
+        self.collateral_token.balance = amount;
         self.collateral_token.balance
     }
 
@@ -253,13 +222,8 @@ impl Market {
     }
 
     fn create_outcome_token(&mut self, outcome_id: OutcomeId) {
-        let price = self.get_initial_outcome_token_price();
-        let outcome_token = OutcomeToken::new(outcome_id, 0.0, price);
+        let outcome_token = OutcomeToken::new(outcome_id, 0);
         self.outcome_tokens.insert(&outcome_id, &outcome_token);
-    }
-
-    fn get_initial_outcome_token_price(&self) -> Price {
-        1 as Price / self.market.options.len() as Price
     }
 
     fn internal_sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
@@ -273,7 +237,7 @@ impl Market {
         let (weight, amount_payable) =
             self.get_amount_payable(amount, outcome_id, self.collateral_token.balance);
 
-        if amount_payable.is_infinite() || amount_payable.is_nan() || amount_payable <= 0.0 {
+        if amount_payable <= 0 {
             env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");
         }
 
@@ -290,31 +254,15 @@ impl Market {
             amount_payable,
         );
 
-        let ft_transfer_promise = Promise::new(self.collateral_token.id.clone()).function_call(
-            "ft_transfer".to_string(),
-            json!({
-                "amount": amount_payable.to_string(),
-                "receiver_id": payee
-            })
-            .to_string()
-            .into_bytes(),
-            FT_TRANSFER_BOND,
-            GAS_FT_TRANSFER,
-        );
+        let ft_transfer_promise = ext_ft_core::ext(self.collateral_token.id.clone())
+            .with_attached_deposit(FT_TRANSFER_BOND)
+            .with_static_gas(GAS_FT_TRANSFER)
+            .ft_transfer(payee.clone(), U128::from(amount_payable), None);
 
-        let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
-            "on_ft_transfer_callback".to_string(),
-            json!({
-                "amount": amount,
-                "payee": payee,
-                "outcome_id": outcome_id,
-                "amount_payable": amount_payable
-            })
-            .to_string()
-            .into_bytes(),
-            0,
-            GAS_FT_TRANSFER_CALLBACK,
-        );
+        let ft_transfer_callback_promise = ext_self::ext(env::current_account_id())
+            .with_attached_deposit(0)
+            .with_static_gas(GAS_FT_TRANSFER_CALLBACK)
+            .on_ft_transfer_callback(amount, payee, outcome_id, amount_payable);
 
         ft_transfer_promise.then(ft_transfer_callback_promise);
 

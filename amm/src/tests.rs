@@ -9,7 +9,7 @@ mod tests {
 
     const _ATTACHED_DEPOSIT: Balance = 1_000_000_000_000_000_000_000_000; // 1 Near
 
-    const LP_FEE: WrappedBalance = 0.02;
+    const LP_FEE: WrappedBalance = 2;
 
     const IX_ADDRESS: [u8; 32] = [
         173, 62, 255, 125, 45, 251, 162, 167, 128, 129, 25, 33, 146, 248, 118, 134, 118, 192, 215,
@@ -87,9 +87,9 @@ mod tests {
 
         let collateral_token = CollateralToken {
             id: collateral_token_id(),
-            balance: 0.0,
+            balance: 0,
             decimals: 6,
-            fee_balance: 0.0,
+            fee_balance: 0,
         };
 
         let fees = Fees {
@@ -201,10 +201,8 @@ mod tests {
         let outcome_token_0: OutcomeToken = contract.get_outcome_token(0);
         let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
 
-        assert_eq!(outcome_token_0.total_supply(), 0.0);
-        assert_eq!(outcome_token_1.total_supply(), 0.0);
-        assert_eq!(outcome_token_0.get_price(), 0.5);
-        assert_eq!(outcome_token_1.get_price(), 0.5);
+        assert_eq!(outcome_token_0.total_supply(), 0);
+        assert_eq!(outcome_token_1.total_supply(), 0);
     }
 
     #[test]
@@ -231,13 +229,9 @@ mod tests {
         let outcome_token_1: OutcomeToken = contract.get_outcome_token(1);
         let outcome_token_2: OutcomeToken = contract.get_outcome_token(2);
 
-        assert_eq!(outcome_token_0.total_supply(), 0.0);
-        assert_eq!(outcome_token_1.total_supply(), 0.0);
-        assert_eq!(outcome_token_2.total_supply(), 0.0);
-
-        assert_eq!(outcome_token_0.get_price(), 0.3333333333333333);
-        assert_eq!(outcome_token_1.get_price(), 0.3333333333333333);
-        assert_eq!(outcome_token_2.get_price(), 0.3333333333333333);
+        assert_eq!(outcome_token_0.total_supply(), 0);
+        assert_eq!(outcome_token_1.total_supply(), 0);
+        assert_eq!(outcome_token_2.total_supply(), 0);
     }
 
     #[test]
@@ -265,22 +259,17 @@ mod tests {
         let outcome_token_2: OutcomeToken = contract.get_outcome_token(2);
         let outcome_token_3: OutcomeToken = contract.get_outcome_token(3);
 
-        assert_eq!(outcome_token_0.total_supply(), 0.0);
-        assert_eq!(outcome_token_1.total_supply(), 0.0);
-        assert_eq!(outcome_token_2.total_supply(), 0.0);
-        assert_eq!(outcome_token_3.total_supply(), 0.0);
-
-        assert_eq!(outcome_token_0.get_price(), 0.25);
-        assert_eq!(outcome_token_1.get_price(), 0.25);
-        assert_eq!(outcome_token_2.get_price(), 0.25);
-        assert_eq!(outcome_token_3.get_price(), 0.25);
+        assert_eq!(outcome_token_0.total_supply(), 0);
+        assert_eq!(outcome_token_1.total_supply(), 0);
+        assert_eq!(outcome_token_2.total_supply(), 0);
+        assert_eq!(outcome_token_3.total_supply(), 0);
     }
 
     #[test]
     fn test_binary_market() {
         let mut context = setup_context();
 
-        let mut collateral_token_balance: WrappedBalance = 0.0;
+        let mut collateral_token_balance: WrappedBalance = 0;
 
         let yes = 0;
         let no = 1;
@@ -314,14 +303,14 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             alice(),
-            400.0,
+            400,
             yes,
         );
         buy(
             &mut contract,
             &mut collateral_token_balance,
             emily(),
-            100.0,
+            100,
             no,
         );
 
@@ -337,14 +326,14 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             bob(),
-            300.0,
+            300,
             yes,
         );
         buy(
             &mut contract,
             &mut collateral_token_balance,
             frank(),
-            100.0,
+            100,
             no,
         );
 
@@ -360,16 +349,10 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             carol(),
-            200.0,
+            200,
             yes,
         );
-        buy(
-            &mut contract,
-            &mut collateral_token_balance,
-            gus(),
-            100.0,
-            no,
-        );
+        buy(&mut contract, &mut collateral_token_balance, gus(), 100, no);
 
         testing_env!(context
             .block_timestamp(
@@ -383,18 +366,18 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             daniel(),
-            100.0,
+            100,
             yes,
         );
 
-        assert_eq!(contract.get_collateral_token_metadata().balance, 1300.0);
+        assert_eq!(contract.get_collateral_token_metadata().balance, 1300);
 
         // Resolve the market: Burn the losers
         testing_env!(context.predecessor_account_id(dao_account_id()).build());
         resolve(&mut contract, &mut collateral_token_balance, yes, None);
         let outcome_token_no = contract.get_outcome_token(no);
         assert_eq!(outcome_token_no.is_active(), false);
-        assert_eq!(outcome_token_no.total_supply(), 0.0);
+        assert_eq!(outcome_token_no.total_supply(), 0);
 
         // Resolution window is over
         let now = now + Duration::days(4);
@@ -405,29 +388,29 @@ mod tests {
         testing_env!(context.signer_account_id(alice()).build());
         sell(&mut contract, alice(), alice_balance, yes, &context);
         let alice_balance = contract.balance_of(yes, alice());
-        assert_eq!(alice_balance, 0.0);
+        assert_eq!(alice_balance, 0);
 
         // bob sells his OT balance after the market is resolved. Claim earnings!!
         let bob_balance = contract.balance_of(yes, bob());
         testing_env!(context.signer_account_id(bob()).build());
         sell(&mut contract, bob(), bob_balance, yes, &context);
         let bob_balance = contract.balance_of(yes, bob());
-        assert_eq!(bob_balance, 0.0);
+        assert_eq!(bob_balance, 0);
 
         let carol_balance = contract.balance_of(yes, carol());
         testing_env!(context.signer_account_id(carol()).build());
         sell(&mut contract, carol(), carol_balance, yes, &context);
         let carol_balance = contract.balance_of(yes, carol());
-        assert_eq!(carol_balance, 0.0);
+        assert_eq!(carol_balance, 0);
 
         let daniel_balance = contract.balance_of(yes, daniel());
         testing_env!(context.signer_account_id(daniel()).build());
         sell(&mut contract, daniel(), daniel_balance, yes, &context);
         let daniel_balance = contract.balance_of(yes, daniel());
-        assert_eq!(daniel_balance, 0.0);
+        assert_eq!(daniel_balance, 0);
 
         let outcome_token_yes = contract.get_outcome_token(yes);
-        assert_eq!(outcome_token_yes.total_supply().ceil(), 0.0);
+        assert_eq!(outcome_token_yes.total_supply(), 0);
 
         assert_eq!(
             contract.get_collateral_token_metadata().balance,
@@ -440,7 +423,7 @@ mod tests {
     fn test_binary_market_errors_when_selling_losing_outcomes() {
         let mut context = setup_context();
 
-        let mut collateral_token_balance: WrappedBalance = 0.0;
+        let mut collateral_token_balance: WrappedBalance = 0;
 
         let yes = 0;
         let no = 1;
@@ -472,14 +455,14 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             alice(),
-            400.0,
+            400,
             yes,
         );
         buy(
             &mut contract,
             &mut collateral_token_balance,
             emily(),
-            100.0,
+            100,
             no,
         );
 
@@ -501,7 +484,7 @@ mod tests {
     fn test_market_with_4_outcomes() {
         let mut context = setup_context();
 
-        let mut collateral_token_balance: WrappedBalance = 0.0;
+        let mut collateral_token_balance: WrappedBalance = 0;
 
         let outcome_1 = 0;
         let outcome_2 = 1;
@@ -524,7 +507,7 @@ mod tests {
 
         create_outcome_tokens(&mut contract);
 
-        let amounts = vec![100.0, 200.0, 300.0, 50.0, 10.0, 20.0, 500.0];
+        let amounts = vec![100, 200, 300, 50, 10, 20, 500];
         let buyers = vec![alice(), bob(), carol(), daniel(), emily(), frank(), gus()];
         let outcomes = vec![outcome_1, outcome_2, outcome_3, outcome_4];
 
@@ -548,7 +531,7 @@ mod tests {
     fn test_buy_error_if_event_is_ongoing() {
         let mut context = setup_context();
 
-        let mut collateral_token_balance: WrappedBalance = 0.0;
+        let mut collateral_token_balance: WrappedBalance = 0;
 
         let yes = 0;
 
@@ -579,7 +562,7 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             alice(),
-            400.0,
+            400,
             yes,
         );
     }
@@ -588,7 +571,7 @@ mod tests {
     fn test_sell_unresolved_market() {
         let mut context = setup_context();
 
-        let mut collateral_token_balance: WrappedBalance = 0.0;
+        let mut collateral_token_balance: WrappedBalance = 0;
 
         let yes = 0;
 
@@ -611,7 +594,7 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             alice(),
-            400.0,
+            400,
             yes,
         );
 
@@ -622,7 +605,7 @@ mod tests {
         let alice_balance = contract.balance_of(yes, alice());
         sell(&mut contract, alice(), alice_balance, yes, &context);
 
-        assert_eq!(contract.balance_of(yes, alice()), 0.0);
+        assert_eq!(contract.balance_of(yes, alice()), 0);
     }
 
     #[test]
@@ -652,7 +635,7 @@ mod tests {
     fn test_sell_error_if_market_is_under_resolution() {
         let mut context = setup_context();
 
-        let mut collateral_token_balance: WrappedBalance = 0.0;
+        let mut collateral_token_balance: WrappedBalance = 0;
 
         let yes = 0;
 
@@ -675,7 +658,7 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             alice(),
-            400.0,
+            400,
             yes,
         );
 
@@ -720,9 +703,9 @@ mod tests {
             ],
         );
 
-        let amount_payable = contract.on_claim_staking_fees_resolved_callback(221.0, alice());
+        let amount_payable = contract.on_claim_staking_fees_resolved_callback(221, alice());
 
-        // (221 = 85% of total fees for $PULSE stakers) * (0.5 = alice.near weight of $PULSE total_supply) = 110.5,
+        // (221 = 85% of total fees for $PULSE stakers) * (5 = alice.near weight of $PULSE total_supply) = 110.5,
         // then convert to Collateral Token decimals precision
         assert_eq!(amount_payable, "1105000000");
         assert_eq!(contract.get_claimed_staking_fees(alice()), "1105000000");
@@ -733,7 +716,7 @@ mod tests {
     fn test_signer_is_not_owner() {
         let mut context = setup_context();
 
-        let mut collateral_token_balance: WrappedBalance = 0.0;
+        let mut collateral_token_balance: WrappedBalance = 0;
 
         let yes = 0;
 

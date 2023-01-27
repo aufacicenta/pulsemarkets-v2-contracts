@@ -1,4 +1,4 @@
-use near_sdk::{env, log, near_bindgen, AccountId};
+use near_sdk::{env, near_bindgen, AccountId};
 
 use crate::storage::*;
 
@@ -12,23 +12,8 @@ impl Market {
         self.fees.fee_ratio
     }
 
-    pub fn get_price_ratio(&self, outcome_id: OutcomeId) -> PriceRatio {
-        let outcome_token = self.get_outcome_token(outcome_id);
-        let accounts_length = outcome_token.get_accounts_length() + 1;
-
-        let price_ratio = (1.0 - (1.0 / accounts_length as PriceRatio)) / 100.0;
-
-        log!(
-            "GET_PRICE_RATIO accounts_length: {}, price_ratio: {}\n",
-            accounts_length - 1,
-            price_ratio
-        );
-
-        price_ratio
-    }
-
     pub fn get_balance_boost_ratio(&self) -> WrappedBalance {
-        1.0
+        1
     }
 
     pub fn get_outcome_token(&self, outcome_id: OutcomeId) -> OutcomeToken {
@@ -109,40 +94,25 @@ impl Market {
     }
 
     pub fn get_cumulative_weight(&self, amount: WrappedBalance) -> WrappedBalance {
-        let mut supply = 0.0;
+        let mut supply = 0;
 
         for id in 0..self.market.options.len() {
             let outcome_token = self.get_outcome_token(id as OutcomeId);
             supply += outcome_token.total_supply();
         }
 
-        if supply == 0.0 {
-            return 1.0;
+        if supply == 0 {
+            return 1;
         }
 
         amount / supply
     }
 
-    pub fn get_amount_mintable(
-        &self,
-        amount: WrappedBalance,
-        outcome_id: OutcomeId,
-    ) -> (
-        Price,
-        WrappedBalance,
-        WrappedBalance,
-        WrappedBalance,
-        WrappedBalance,
-    ) {
-        let outcome_token = self.get_outcome_token(outcome_id);
+    pub fn get_amount_mintable(&self, amount: WrappedBalance) -> (WrappedBalance, WrappedBalance) {
+        let fee = (amount * self.get_fee_ratio()) / 100;
+        let amount_mintable = amount - fee;
 
-        let price = outcome_token.get_price();
-        let fee = amount * self.get_fee_ratio();
-        let exchange_rate = (amount - fee) * (1.0 - price);
-        let balance_boost = self.get_balance_boost_ratio();
-        let amount_mintable = exchange_rate * balance_boost;
-
-        (price, fee, exchange_rate, balance_boost, amount_mintable)
+        (amount_mintable, fee)
     }
 
     pub fn get_amount_payable(
@@ -154,12 +124,12 @@ impl Market {
         let fees = self.collateral_token.fee_balance;
 
         let mut weight = self.get_cumulative_weight(amount);
-        let mut amount_payable = (balance * weight - fees * weight).floor();
+        let mut amount_payable = balance * weight - fees * weight;
 
         if self.is_resolved() {
             let outcome_token = self.get_outcome_token(outcome_id);
             weight = amount / outcome_token.total_supply();
-            amount_payable = (balance * weight - fees * weight).floor();
+            amount_payable = balance * weight - fees * weight;
         }
 
         (weight, amount_payable)
