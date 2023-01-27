@@ -1,6 +1,10 @@
 use near_sdk::{collections::UnorderedMap, log, AccountId};
+use num_format::ToFormattedString;
 
-use crate::storage::{OutcomeId, OutcomeToken, WrappedBalance};
+use crate::{
+    storage::{OutcomeId, OutcomeToken, WrappedBalance},
+    FORMATTED_STRING_LOCALE,
+};
 
 impl Default for OutcomeToken {
     fn default() -> Self {
@@ -42,10 +46,11 @@ impl OutcomeToken {
 
         log!(
             "Minted {} of outcome_token [{}] for {}. Supply: {}",
-            amount,
+            amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
             self.outcome_id,
             account_id,
             self.total_supply()
+                .to_formatted_string(&FORMATTED_STRING_LOCALE)
         );
     }
 

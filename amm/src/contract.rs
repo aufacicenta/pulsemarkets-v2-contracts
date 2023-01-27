@@ -1,6 +1,7 @@
 use near_sdk::collections::LookupMap;
 use near_sdk::json_types::U128;
 use near_sdk::{env, ext_contract, log, near_bindgen, AccountId};
+use num_format::ToFormattedString;
 use std::default::Default;
 
 use near_contract_standards::fungible_token::core::ext_ft_core;
@@ -117,14 +118,15 @@ impl Market {
 
         let (amount_mintable, fee) = self.get_amount_mintable(amount);
 
-        log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, amount_mintable: {}",
-            amount,
-            self.fees.fee_ratio,
-            fee,
+        log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, amount_mintable: {}, fee_balance: {}",
+            amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
+            self.fees.fee_ratio.to_formatted_string(&FORMATTED_STRING_LOCALE),
+            fee.to_formatted_string(&FORMATTED_STRING_LOCALE),
             outcome_token.outcome_id,
             sender_id,
-            outcome_token.total_supply(),
-            amount_mintable,
+            outcome_token.total_supply().to_formatted_string(&FORMATTED_STRING_LOCALE),
+            amount_mintable.to_formatted_string(&FORMATTED_STRING_LOCALE),
+            self.collateral_token.fee_balance.to_formatted_string(&FORMATTED_STRING_LOCALE),
         );
 
         outcome_token.mint(&sender_id, amount_mintable);
@@ -234,8 +236,7 @@ impl Market {
         let outcome_token = self.get_outcome_token(outcome_id);
 
         let payee = env::signer_account_id();
-        let (weight, amount_payable) =
-            self.get_amount_payable(amount, outcome_id, self.collateral_token.balance);
+        let (weight, amount_payable) = self.get_amount_payable(amount, outcome_id);
 
         if amount_payable <= 0 {
             env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");
@@ -243,15 +244,15 @@ impl Market {
 
         log!(
             "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",
-            amount,
+            amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
             outcome_id,
             payee,
-            outcome_token.get_balance(&payee),
-            outcome_token.total_supply(),
+            outcome_token.get_balance(&payee).to_formatted_string(&FORMATTED_STRING_LOCALE),
+            outcome_token.total_supply().to_formatted_string(&FORMATTED_STRING_LOCALE),
             self.is_resolved(),
-            self.collateral_token.balance,
-            weight,
-            amount_payable,
+            self.collateral_token.balance.to_formatted_string(&FORMATTED_STRING_LOCALE),
+            weight.to_formatted_string(&FORMATTED_STRING_LOCALE),
+            amount_payable.to_formatted_string(&FORMATTED_STRING_LOCALE),
         );
 
         let ft_transfer_promise = ext_ft_core::ext(self.collateral_token.id.clone())

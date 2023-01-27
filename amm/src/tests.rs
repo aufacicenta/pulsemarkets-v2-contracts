@@ -9,7 +9,8 @@ mod tests {
 
     const _ATTACHED_DEPOSIT: Balance = 1_000_000_000_000_000_000_000_000; // 1 Near
 
-    const LP_FEE: WrappedBalance = 2;
+    // 0.02 or 2% for 6 decimals precision points, 0.02*1e6
+    const LP_FEE: WrappedBalance = 20_000;
 
     const IX_ADDRESS: [u8; 32] = [
         173, 62, 255, 125, 45, 251, 162, 167, 128, 129, 25, 33, 146, 248, 118, 134, 118, 192, 215,
@@ -155,7 +156,7 @@ mod tests {
 
         c.resolve(outcome_id, ix);
         let balance = *collateral_token_balance;
-        *collateral_token_balance -= balance * c.get_fee_ratio();
+        *collateral_token_balance -= c.calc_percentage(balance, c.get_fee_ratio());
     }
 
     fn create_outcome_tokens(c: &mut Market) {
@@ -266,7 +267,7 @@ mod tests {
     }
 
     #[test]
-    fn test_binary_market() {
+    fn binary_market_full_flow() {
         let mut context = setup_context();
 
         let mut collateral_token_balance: WrappedBalance = 0;
@@ -303,14 +304,14 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             alice(),
-            400,
+            400_000_000,
             yes,
         );
         buy(
             &mut contract,
             &mut collateral_token_balance,
             emily(),
-            100,
+            100_000_000,
             no,
         );
 
@@ -326,14 +327,14 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             bob(),
-            300,
+            300_000_000,
             yes,
         );
         buy(
             &mut contract,
             &mut collateral_token_balance,
             frank(),
-            100,
+            100_000_000,
             no,
         );
 
@@ -349,10 +350,16 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             carol(),
-            200,
+            200_000_000,
             yes,
         );
-        buy(&mut contract, &mut collateral_token_balance, gus(), 100, no);
+        buy(
+            &mut contract,
+            &mut collateral_token_balance,
+            gus(),
+            100_000_000,
+            no,
+        );
 
         testing_env!(context
             .block_timestamp(
@@ -366,11 +373,23 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             daniel(),
-            100,
+            100_000_000,
             yes,
         );
 
-        assert_eq!(contract.get_collateral_token_metadata().balance, 1300);
+        assert_eq!(
+            contract.get_collateral_token_metadata().balance,
+            1_300_000_000
+        );
+        assert_eq!(
+            contract.get_collateral_token_metadata().fee_balance,
+            260_000
+        );
+
+        let outcome_token_yes = contract.get_outcome_token(yes);
+        let outcome_token_no = contract.get_outcome_token(no);
+        assert_eq!(outcome_token_yes.total_supply(), 999_800_000);
+        assert_eq!(outcome_token_no.total_supply(), 299_940_000);
 
         // Resolve the market: Burn the losers
         testing_env!(context.predecessor_account_id(dao_account_id()).build());
@@ -414,7 +433,7 @@ mod tests {
 
         assert_eq!(
             contract.get_collateral_token_metadata().balance,
-            contract.collateral_token.fee_balance
+            contract.get_collateral_token_metadata().fee_balance
         );
     }
 

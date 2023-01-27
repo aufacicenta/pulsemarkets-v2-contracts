@@ -1,6 +1,8 @@
-use near_sdk::{env, near_bindgen, AccountId};
+use crate::math;
+use near_sdk::{env, log, near_bindgen, AccountId};
+use num_format::ToFormattedString;
 
-use crate::storage::*;
+use crate::{storage::*, FORMATTED_STRING_LOCALE};
 
 #[near_bindgen]
 impl Market {
@@ -10,10 +12,6 @@ impl Market {
 
     pub fn get_fee_ratio(&self) -> WrappedBalance {
         self.fees.fee_ratio
-    }
-
-    pub fn get_balance_boost_ratio(&self) -> WrappedBalance {
-        1
     }
 
     pub fn get_outcome_token(&self, outcome_id: OutcomeId) -> OutcomeToken {
@@ -93,23 +91,8 @@ impl Market {
         self.get_outcome_token(outcome_id).get_balance(&account_id)
     }
 
-    pub fn get_cumulative_weight(&self, amount: WrappedBalance) -> WrappedBalance {
-        let mut supply = 0;
-
-        for id in 0..self.market.options.len() {
-            let outcome_token = self.get_outcome_token(id as OutcomeId);
-            supply += outcome_token.total_supply();
-        }
-
-        if supply == 0 {
-            return 1;
-        }
-
-        amount / supply
-    }
-
     pub fn get_amount_mintable(&self, amount: WrappedBalance) -> (WrappedBalance, WrappedBalance) {
-        let fee = (amount * self.get_fee_ratio()) / 100;
+        let fee = self.calc_percentage(amount, self.get_fee_ratio());
         let amount_mintable = amount - fee;
 
         (amount_mintable, fee)
@@ -119,19 +102,59 @@ impl Market {
         &self,
         amount: WrappedBalance,
         outcome_id: OutcomeId,
-        balance: WrappedBalance,
     ) -> (WrappedBalance, WrappedBalance) {
-        let fees = self.collateral_token.fee_balance;
+        let balance = self.collateral_token.balance - self.collateral_token.fee_balance;
 
-        let mut weight = self.get_cumulative_weight(amount);
-        let mut amount_payable = balance * weight - fees * weight;
+        let mut weight = math::complex_div_u128(self.get_precision_decimals(), amount, balance);
+        let mut amount_payable =
+            math::complex_mul_u128(self.get_precision_decimals(), amount, weight);
 
         if self.is_resolved() {
             let outcome_token = self.get_outcome_token(outcome_id);
-            weight = amount / outcome_token.total_supply();
-            amount_payable = balance * weight - fees * weight;
+
+            weight = math::complex_div_u128(
+                self.get_precision_decimals(),
+                amount,
+                outcome_token.total_supply(),
+            );
+
+            amount_payable = math::complex_mul_u128(self.get_precision_decimals(), amount, weight);
+
+            log!(
+                "get_amount_payable - RESOLVED -- selling: {}, ct_balance: {}, weight: {}, amount_payable: {}",
+                amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                balance.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                weight.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                amount_payable.to_formatted_string(&FORMATTED_STRING_LOCALE)
+            );
+        } else {
+            log!(
+                "get_amount_payable - UNRESOLVED -- selling: {}, ct_balance: {}, cumulative_weight: {}, amount_payable: {}",
+                amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                balance.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                weight.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                amount_payable.to_formatted_string(&FORMATTED_STRING_LOCALE)
+            );
         }
 
         (weight, amount_payable)
+    }
+
+    pub fn get_precision_decimals(&self) -> WrappedBalance {
+        let precision = format!(
+            "{:0<p$}",
+            10,
+            p = self.collateral_token.decimals as usize + 1
+        );
+
+        precision.parse().unwrap()
+    }
+
+    pub fn calc_percentage(&self, amount: WrappedBalance, bps: WrappedBalance) -> WrappedBalance {
+        math::complex_div_u128(
+            self.get_precision_decimals(),
+            math::complex_mul_u128(self.get_precision_decimals(), amount, bps),
+            math::complex_mul_u128(1, self.get_precision_decimals(), 100),
+        )
     }
 }
