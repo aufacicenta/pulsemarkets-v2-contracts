@@ -181,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_outcome_tokens() {
+    fn new_outcome_tokens() {
         let mut context = setup_context();
 
         let now = Utc::now();
@@ -207,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_market_with_3_outcomes() {
+    fn create_market_with_3_outcomes() {
         let mut context = setup_context();
 
         let now = Utc::now();
@@ -236,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_market_with_4_outcomes() {
+    fn create_market_with_4_outcomes() {
         let mut context = setup_context();
 
         let now = Utc::now();
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "ERR_CANT_SELL_A_LOSING_OUTCOME")]
-    fn test_binary_market_errors_when_selling_losing_outcomes() {
+    fn binary_market_errors_when_selling_losing_outcomes() {
         let mut context = setup_context();
 
         let mut collateral_token_balance: WrappedBalance = 0;
@@ -474,14 +474,14 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             alice(),
-            400,
+            400_000_000,
             yes,
         );
         buy(
             &mut contract,
             &mut collateral_token_balance,
             emily(),
-            100,
+            100_000_000,
             no,
         );
 
@@ -500,7 +500,7 @@ mod tests {
     }
 
     #[test]
-    fn test_market_with_4_outcomes() {
+    fn market_with_4_outcomes() {
         let mut context = setup_context();
 
         let mut collateral_token_balance: WrappedBalance = 0;
@@ -526,7 +526,16 @@ mod tests {
 
         create_outcome_tokens(&mut contract);
 
-        let amounts = vec![100, 200, 300, 50, 10, 20, 500];
+        let amounts = vec![
+            100_000_000,
+            200_000_000,
+            300_000_000,
+            50_000_000,
+            10_000_000,
+            20_000_000,
+            500_000_000,
+        ];
+
         let buyers = vec![alice(), bob(), carol(), daniel(), emily(), frank(), gus()];
         let outcomes = vec![outcome_1, outcome_2, outcome_3, outcome_4];
 
@@ -547,7 +556,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "ERR_MARKET_IS_CLOSED")]
-    fn test_buy_error_if_event_is_ongoing() {
+    fn buy_error_if_event_is_ongoing() {
         let mut context = setup_context();
 
         let mut collateral_token_balance: WrappedBalance = 0;
@@ -581,13 +590,13 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             alice(),
-            400,
+            400_000_000,
             yes,
         );
     }
 
     #[test]
-    fn test_sell_unresolved_market() {
+    fn sell_unresolved_market() {
         let mut context = setup_context();
 
         let mut collateral_token_balance: WrappedBalance = 0;
@@ -613,7 +622,7 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             alice(),
-            400,
+            400_000_000,
             yes,
         );
 
@@ -629,7 +638,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "ERR_CREATE_OUTCOME_TOKENS_OUTCOMES_EXIST")]
-    fn test_create_outcome_tokens_error() {
+    fn create_outcome_tokens_error() {
         let mut context = setup_context();
 
         let now = Utc::now();
@@ -651,7 +660,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "ERR_MARKET_IS_UNDER_RESOLUTION")]
-    fn test_sell_error_if_market_is_under_resolution() {
+    fn sell_error_if_market_is_under_resolution() {
         let mut context = setup_context();
 
         let mut collateral_token_balance: WrappedBalance = 0;
@@ -677,7 +686,7 @@ mod tests {
             &mut contract,
             &mut collateral_token_balance,
             alice(),
-            400,
+            400_000_000,
             yes,
         );
 
@@ -690,7 +699,7 @@ mod tests {
     }
 
     #[test]
-    fn test_on_claim_staking_fees_resolved_callback() {
+    fn on_claim_staking_fees_resolved_callback() {
         let mut context = setup_context();
 
         let now = Utc::now();
@@ -713,7 +722,7 @@ mod tests {
             near_sdk::VMConfig::test(),
             near_sdk::RuntimeFeesConfig::test(),
             Default::default(),
-            // 50%
+            // These 2 amounts will get the weight % of the staking wallet: 50%
             vec![
                 // ft_balance_of
                 PromiseResult::Successful("5000000".to_string().into_bytes()),
@@ -722,17 +731,18 @@ mod tests {
             ],
         );
 
-        let amount_payable = contract.on_claim_staking_fees_resolved_callback(221, alice());
+        // This amount represents 85% of the total fee_balance
+        let amount_payable = contract.on_claim_staking_fees_resolved_callback(221_000_000, alice());
 
         // (221 = 85% of total fees for $PULSE stakers) * (5 = alice.near weight of $PULSE total_supply) = 110.5,
         // then convert to Collateral Token decimals precision
-        assert_eq!(amount_payable, "1105000000");
-        assert_eq!(contract.get_claimed_staking_fees(alice()), "1105000000");
+        assert_eq!(amount_payable, "110500000");
+        assert_eq!(contract.get_claimed_staking_fees(alice()), "110500000");
     }
 
     #[test]
     #[should_panic(expected = "ERR_SIGNER_IS_NOT_OWNER")]
-    fn test_signer_is_not_owner() {
+    fn signer_is_not_owner() {
         let mut context = setup_context();
 
         let mut collateral_token_balance: WrappedBalance = 0;

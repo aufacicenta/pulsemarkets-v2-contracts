@@ -238,14 +238,15 @@ impl Market {
             env::panic_str("ERR_SELL_AMOUNT_GREATER_THAN_BALANCE");
         }
 
-        let outcome_token = self.get_outcome_token(outcome_id);
-
-        let payee = env::signer_account_id();
         let (amount_payable, weight) = self.get_amount_payable(amount, outcome_id);
 
         if amount_payable <= 0 {
             env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");
         }
+
+        let outcome_token = self.get_outcome_token(outcome_id);
+
+        let payee = env::signer_account_id();
 
         log!(
             "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",

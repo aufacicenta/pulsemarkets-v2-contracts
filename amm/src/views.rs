@@ -112,6 +112,10 @@ impl Market {
         if self.is_resolved() {
             let outcome_token = self.get_outcome_token(outcome_id);
 
+            if outcome_token.total_supply() <= 0 {
+                env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");
+            }
+
             weight = math::complex_div_u128(
                 self.get_precision_decimals(),
                 amount,

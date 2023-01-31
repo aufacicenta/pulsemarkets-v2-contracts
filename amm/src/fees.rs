@@ -5,8 +5,8 @@ use near_sdk::{
     PromiseResult,
 };
 
-use crate::consts::*;
 use crate::storage::*;
+use crate::{consts::*, math};
 
 #[ext_contract(ext_self)]
 trait Callbacks {
@@ -63,7 +63,15 @@ impl Market {
                         let promises =
                             env::promise_and(&[ft_balance_of_promise, ft_total_supply_promise]);
 
-                        let amount = (self.collateral_token.fee_balance * 15) / 100;
+                        let amount = math::complex_div_u128(
+                            self.get_precision_decimals(),
+                            math::complex_mul_u128(
+                                self.get_precision_decimals(),
+                                self.collateral_token.fee_balance,
+                                15,
+                            ),
+                            100,
+                        );
 
                         let callback = env::promise_then(
                             promises,
@@ -191,8 +199,8 @@ impl Market {
             payee,
         );
 
-        let weight = ft_balance_of / ft_total_supply;
-        let amount_payable = &amount * weight;
+        let weight = self.calc_percentage(ft_balance_of, ft_total_supply);
+        let amount_payable = math::complex_mul_u128(self.get_precision_decimals(), amount, weight);
 
         log!(
             "on_claim_staking_fees_resolved_callback weight: {}, amount_payable: {}",
