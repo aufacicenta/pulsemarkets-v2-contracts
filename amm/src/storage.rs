@@ -61,7 +61,7 @@ pub struct OutcomeToken {
     pub is_active: bool,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Deserialize, Serialize, Clone)]
 pub struct CollateralToken {
     pub id: AccountId,
     pub balance: WrappedBalance,
@@ -69,11 +69,11 @@ pub struct CollateralToken {
     pub fee_balance: WrappedBalance,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[derive(BorshSerialize, BorshDeserialize, Deserialize, Serialize)]
 pub struct Fees {
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing, skip_deserializing)]
     pub staking_fees: Option<LookupMap<AccountId, String>>,
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing, skip_deserializing)]
     pub market_creator_fees: Option<LookupMap<AccountId, String>>,
     pub claiming_window: Option<Timestamp>,
     // Decimal fee to charge upon a bet

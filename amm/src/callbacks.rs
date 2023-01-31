@@ -1,6 +1,7 @@
 use near_sdk::{env, log, near_bindgen, AccountId, PromiseResult};
+use num_format::ToFormattedString;
 
-use crate::storage::*;
+use crate::{storage::*, FORMATTED_STRING_LOCALE};
 
 #[near_bindgen]
 impl Market {
@@ -14,7 +15,10 @@ impl Market {
     ) -> String {
         match env::promise_result(0) {
             PromiseResult::Successful(_result) => {
-                log!("on_ft_transfer_callback.amount_payable: {}", amount_payable);
+                log!(
+                    "on_ft_transfer_callback.amount_payable: {}",
+                    amount_payable.to_formatted_string(&FORMATTED_STRING_LOCALE)
+                );
 
                 let mut outcome_token = self.get_outcome_token(outcome_id);
                 outcome_token.burn(&payee, amount);

@@ -200,6 +200,11 @@ impl Market {
 
     #[private]
     pub fn update_ct_balance(&mut self, amount: WrappedBalance) -> WrappedBalance {
+        log!(
+            "update_ct_balance: {}",
+            amount.to_formatted_string(&FORMATTED_STRING_LOCALE)
+        );
+
         self.collateral_token.balance = amount;
         self.collateral_token.balance
     }
@@ -236,7 +241,7 @@ impl Market {
         let outcome_token = self.get_outcome_token(outcome_id);
 
         let payee = env::signer_account_id();
-        let (weight, amount_payable) = self.get_amount_payable(amount, outcome_id);
+        let (amount_payable, weight) = self.get_amount_payable(amount, outcome_id);
 
         if amount_payable <= 0 {
             env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");

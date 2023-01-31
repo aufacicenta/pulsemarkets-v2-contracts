@@ -118,7 +118,7 @@ impl Market {
                 outcome_token.total_supply(),
             );
 
-            amount_payable = math::complex_mul_u128(self.get_precision_decimals(), amount, weight);
+            amount_payable = math::complex_mul_u128(self.get_precision_decimals(), balance, weight);
 
             log!(
                 "get_amount_payable - RESOLVED -- selling: {}, ct_balance: {}, weight: {}, amount_payable: {}",
@@ -137,7 +137,7 @@ impl Market {
             );
         }
 
-        (weight, amount_payable)
+        (amount_payable, weight)
     }
 
     pub fn get_precision_decimals(&self) -> WrappedBalance {
