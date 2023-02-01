@@ -38,10 +38,8 @@ impl MarketFactory {
 
         let mut init_args: Value = serde_json::from_slice(&args.0.as_slice()).unwrap();
 
-        init_args.as_object_mut().unwrap().insert(
-            "market_creator_account_id".to_string(),
-            Value::String(env::signer_account_id().to_string()),
-        );
+        init_args["management"]["market_creator_account_id"] =
+            Value::String(env::signer_account_id().to_string());
 
         // @TODO if this promise fails, the funds (attached_deposit) are not returned to the signer
         let create_market_promise = Promise::new(market_account_id.clone())
