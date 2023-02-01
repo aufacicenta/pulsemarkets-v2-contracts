@@ -9,3 +9,6 @@ pub use callbacks::*;
 
 pub mod contract;
 pub use contract::*;
+
+pub mod tests;
+pub use tests::*;
