@@ -79,10 +79,6 @@ impl Market {
         self.get_block_timestamp() > self.market.ends_at
     }
 
-    pub fn has_begun(&self) -> bool {
-        self.get_block_timestamp() > self.market.starts_at
-    }
-
     pub fn is_resolution_window_expired(&self) -> bool {
         self.get_block_timestamp() > self.resolution.window
     }
