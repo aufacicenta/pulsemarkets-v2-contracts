@@ -44,11 +44,11 @@ mod tests {
         let mut contract = setup_contract();
 
         let name = AccountId::new_unchecked("480c9dbe-a5ec".to_string());
-        let dao_account_id = AccountId::new_unchecked("dao_account_id".to_string());
+        let dao_account_id = AccountId::new_unchecked("dao-account-id.near".to_string());
         let market_creator_account_id =
-            AccountId::new_unchecked("market_creator_account_id".to_string());
+            AccountId::new_unchecked("market-creator-account-id.near".to_string());
         let collateral_token_account_id =
-            AccountId::new_unchecked("collateral_token_account_id".to_string());
+            AccountId::new_unchecked("collateral-token-account-id.near".to_string());
 
         let args = json!({
             "market": {
