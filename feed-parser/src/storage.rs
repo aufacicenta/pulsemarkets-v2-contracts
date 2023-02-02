@@ -19,7 +19,7 @@ pub struct Ix {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct PriceFeedArgs {
+pub struct AbovePriceFeedArgs {
     pub ix: Ix,
     pub market_options: Vec<String>,
     pub market_outcome_ids: Vec<OutcomeId>,
@@ -29,5 +29,5 @@ pub struct PriceFeedArgs {
 
 #[derive(Serialize, Deserialize)]
 pub enum Payload {
-    AggregatorReadArgs(PriceFeedArgs),
+    AggregatorReadArgs(AbovePriceFeedArgs),
 }

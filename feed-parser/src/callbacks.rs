@@ -1,8 +1,4 @@
-use near_sdk::{
-    env::{self, predecessor_account_id},
-    ext_contract, log, near_bindgen, serde_json,
-    PromiseResult::Successful,
-};
+use near_sdk::{env, ext_contract, log, near_bindgen, serde_json, PromiseResult::Successful};
 use sbv2_near::AggregatorRound;
 
 use crate::storage::*;
@@ -15,25 +11,42 @@ trait Market {
 #[near_bindgen]
 impl SwitchboardFeedParser {
     #[private]
-    pub fn on_aggregator_read_callback(&self, payload: PriceFeedArgs) {
+    pub fn on_internal_above_price_feed_read_callback(
+        &self,
+        payload: AbovePriceFeedArgs,
+    ) -> OutcomeId {
         let maybe_round = env::promise_result(0);
 
         if let Successful(serialized_round) = maybe_round {
             let round: AggregatorRound = serde_json::from_slice(&serialized_round).unwrap();
-            let val: Price = round.result.try_into().unwrap();
+            let result: Price = round.result.try_into().unwrap();
 
-            log!("Feed value: {:?}", val);
+            log!(
+                "on_internal_above_price_feed_read_callback.result: {:?}",
+                result
+            );
 
             let predecessor_account_id = payload
                 .predecessor_account_id
                 .expect("ERR_PREDECESSOR_ACCOUNT_ID_NOT_SET");
 
-            let winning_outcome_id = 0;
+            log!(
+                "on_internal_above_price_feed_read_callback.predecessor_account_id: {}",
+                predecessor_account_id
+            );
 
-            let market_resolve_promise =
-                ext_market::ext(predecessor_account_id).resolve(winning_outcome_id, payload.ix);
-        } else {
-            log!("ERROR_ON_AGGREGATOR_READ_CALLBACK");
+            let mut winning_outcome_id = payload.market_outcome_ids[0];
+
+            if payload.price < result {
+                winning_outcome_id = payload.market_outcome_ids[1];
+            }
+
+            // @TODO add a callback for this promise in case it errors
+            ext_market::ext(predecessor_account_id).resolve(winning_outcome_id, payload.ix);
+
+            return winning_outcome_id;
         }
+
+        env::panic_str("ERROR_ON_AGGREGATOR_READ_CALLBACK");
     }
 }
