@@ -11,6 +11,7 @@ pub type Timestamp = i64;
 pub type LiquidityProvider = AccountId;
 pub type WrappedBalance = u128;
 pub type Weight = u128;
+pub type Price = f64;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
@@ -18,6 +19,8 @@ pub type Weight = u128;
 pub struct MarketData {
     pub description: String,
     pub info: String,
+    // If self.price is set, this is a binary yes/no price market — used on self.aggregator_read
+    pub price: Option<Price>,
     pub category: Option<String>,
     pub options: Vec<String>,
     // Datetime nanos: the market is open
@@ -124,7 +127,7 @@ pub enum Payload {
     BuyArgs(BuyArgs),
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 pub struct Ix {
     pub address: [u8; 32],
 }

@@ -1,6 +1,7 @@
-use near_sdk::collections::LookupMap;
-use near_sdk::json_types::U128;
-use near_sdk::{env, ext_contract, log, near_bindgen, AccountId};
+use near_sdk::{
+    collections::LookupMap, env, ext_contract, json_types::U128, log, near_bindgen, serde_json,
+    AccountId,
+};
 use num_format::ToFormattedString;
 use std::default::Default;
 
@@ -18,6 +19,11 @@ trait Callbacks {
         outcome_id: OutcomeId,
         amount_payable: WrappedBalance,
     ) -> String;
+}
+
+#[ext_contract(ext_feed_parser)]
+trait SwitchboardFeedParser {
+    fn aggregator_read(&self, msg: String) -> Promise;
 }
 
 impl Default for Market {
@@ -46,8 +52,15 @@ impl Market {
 
         let resolution_window = resolution.window;
 
+        // yes/no price markets have this value set upon creation
+        let price = if let Some(price) = market.price {
+            Some(price)
+        } else {
+            None
+        };
+
         Self {
-            market,
+            market: MarketData { price, ..market },
             collateral_token: CollateralToken {
                 balance: 0,
                 fee_balance: 0,
@@ -69,19 +82,6 @@ impl Market {
                 claiming_window: Some(resolution_window + 2592000 * 1_000_000_000),
                 ..fees
             },
-        }
-    }
-
-    pub fn create_outcome_tokens(&mut self) -> usize {
-        match self.outcome_tokens.get(&0) {
-            Some(_token) => env::panic_str("ERR_CREATE_OUTCOME_TOKENS_OUTCOMES_EXIST"),
-            None => {
-                for outcome_id in 0..self.market.options.len() {
-                    self.create_outcome_token(outcome_id as u64);
-                }
-
-                self.market.options.len()
-            }
         }
     }
 
@@ -196,6 +196,43 @@ impl Market {
         self.burn_the_losers(outcome_id);
 
         self.resolution.resolved_at = Some(self.get_block_timestamp());
+    }
+
+    pub fn create_outcome_tokens(&mut self) -> usize {
+        match self.outcome_tokens.get(&0) {
+            Some(_token) => env::panic_str("ERR_CREATE_OUTCOME_TOKENS_OUTCOMES_EXIST"),
+            None => {
+                for outcome_id in 0..self.market.options.len() {
+                    self.create_outcome_token(outcome_id as u64);
+                }
+
+                self.market.options.len()
+            }
+        }
+    }
+
+    /**
+     * attempt to call the feed-parser contract that will call "self.resolve"
+     */
+    pub fn aggregator_read(&mut self) {
+        let ix = self.resolution.ix.clone();
+
+        let msg = serde_json::json!({
+            "AggregatorReadArgs": {
+                "ix": ix,
+                "market_options": self.get_market_data().options,
+                "market_outcome_ids": self.get_outcome_ids(),
+                "price": self.get_market_data().price,
+            }
+        });
+
+        // @TODO make the payload to be PriceFeedArgs if the price is set.
+        // let payload: AbovePriceFeedArgs = serde_json::from_str(&msg.to_string()).unwrap();
+
+        // let aggregator_read_promise =
+        //     ext_feed_parser::ext(FEED_PARSER_ACCOUNT_ID.to_string().try_into().unwrap())
+        //         .with_static_gas(GAS_AGGREGATOR_READ)
+        //         .aggregator_read(payload);
     }
 
     #[private]

@@ -172,6 +172,7 @@ mod tests {
         MarketData {
             description,
             info: "".to_string(),
+            price: None,
             category: None,
             options: (0..options).map(|s| s.to_string()).collect(),
             starts_at,

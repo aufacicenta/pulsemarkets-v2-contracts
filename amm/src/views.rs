@@ -21,6 +21,15 @@ impl Market {
         }
     }
 
+    pub fn get_outcome_ids(&self) -> Vec<OutcomeId> {
+        self.market
+            .options
+            .iter()
+            .enumerate()
+            .map(|(index, _)| index as OutcomeId)
+            .collect()
+    }
+
     pub fn get_block_timestamp(&self) -> Timestamp {
         env::block_timestamp().try_into().unwrap()
     }
