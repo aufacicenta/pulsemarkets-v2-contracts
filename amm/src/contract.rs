@@ -51,7 +51,8 @@ impl Market {
             env::panic_str("ERR_NEW_INSUFFICIENT_MARKET_OPTIONS");
         }
 
-        let resolution_window = resolution.window;
+        // add 3 days after ends_at
+        let resolution_window = market.ends_at + 259_200 * 1_000_000_000;
 
         // yes/no price markets have this value set upon creation
         let price = if let Some(price) = market.price {
@@ -69,7 +70,10 @@ impl Market {
                 ..collateral_token
             },
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
-            resolution,
+            resolution: Resolution {
+                window: resolution_window,
+                ..resolution
+            },
             management: Management {
                 staking_token_account_id: Some(AccountId::new_unchecked(
                     STAKING_TOKEN_ACCOUNT_ID.to_string(),
