@@ -1,15 +1,10 @@
 use near_sdk::{
-    borsh::{self, BorshDeserialize, BorshSerialize},
-    near_bindgen,
     serde::{Deserialize, Serialize},
     AccountId,
 };
-use shared::{OutcomeId, Price};
 
-#[near_bindgen]
-#[derive(BorshDeserialize, BorshSerialize, Default)]
-// #[cfg_attr(not(target_arch = "wasm32"), derive(Debug))]
-pub struct SwitchboardFeedParser {}
+pub type Price = f64;
+pub type OutcomeId = u64;
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Ix {

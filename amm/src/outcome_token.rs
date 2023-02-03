@@ -1,8 +1,9 @@
 use near_sdk::{collections::UnorderedMap, log, AccountId};
 use num_format::ToFormattedString;
+use shared::OutcomeId;
 
 use crate::{
-    storage::{OutcomeId, OutcomeToken, WrappedBalance},
+    storage::{OutcomeToken, WrappedBalance},
     FORMATTED_STRING_LOCALE,
 };
 

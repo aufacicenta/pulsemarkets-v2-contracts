@@ -5,13 +5,10 @@ use near_sdk::{
     serde::{Deserialize, Serialize},
     AccountId, BorshStorageKey,
 };
+use shared::{OutcomeId, Price};
 
-pub type OutcomeId = u64;
 pub type Timestamp = i64;
-pub type LiquidityProvider = AccountId;
 pub type WrappedBalance = u128;
-pub type Weight = u128;
-pub type Price = f64;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]

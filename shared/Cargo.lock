@@ -1030,18 +1030,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sbv2-near-feed-parser"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "near-contract-standards",
- "near-sdk",
- "sbv2-near",
- "serde",
- "shared",
-]
-
-[[package]]
 name = "schemars"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1151,6 +1139,7 @@ dependencies = [
 name = "shared"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "near-sdk",
  "sbv2-near",
  "serde",

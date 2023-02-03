@@ -1,5 +1,6 @@
 use near_sdk::{env, ext_contract, log, near_bindgen, serde_json, PromiseResult::Successful};
 use sbv2_near::AggregatorRound;
+use shared::{OutcomeId, Price};
 
 use crate::storage::*;
 

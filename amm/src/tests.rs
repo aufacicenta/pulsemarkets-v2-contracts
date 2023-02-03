@@ -638,6 +638,28 @@ mod tests {
     }
 
     #[test]
+    fn log_aggregator_read() {
+        let mut context = setup_context();
+
+        let now = Utc::now();
+        testing_env!(context.block_timestamp(block_timestamp(now)).build());
+        let starts_at = now + Duration::hours(1);
+        let ends_at = starts_at + Duration::hours(1);
+
+        let market_data: MarketData = create_market_data(
+            "a market description".to_string(),
+            2,
+            date(starts_at),
+            date(ends_at),
+        );
+
+        let mut contract: Market = setup_contract(market_data, None);
+        create_outcome_tokens(&mut contract);
+
+        contract.aggregator_read();
+    }
+
+    #[test]
     #[should_panic(expected = "ERR_CREATE_OUTCOME_TOKENS_OUTCOMES_EXIST")]
     fn create_outcome_tokens_error() {
         let mut context = setup_context();

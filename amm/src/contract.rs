@@ -1,8 +1,9 @@
 use near_sdk::{
     collections::LookupMap, env, ext_contract, json_types::U128, log, near_bindgen, serde_json,
-    AccountId,
+    AccountId, Promise,
 };
 use num_format::ToFormattedString;
+use shared::OutcomeId;
 use std::default::Default;
 
 use near_contract_standards::fungible_token::core::ext_ft_core;
@@ -214,7 +215,7 @@ impl Market {
     /**
      * attempt to call the feed-parser contract that will call "self.resolve"
      */
-    pub fn aggregator_read(&mut self) {
+    pub fn aggregator_read(&mut self) -> Promise {
         let ix = self.resolution.ix.clone();
 
         let msg = serde_json::json!({
@@ -226,13 +227,12 @@ impl Market {
             }
         });
 
-        // @TODO make the payload to be PriceFeedArgs if the price is set.
-        // let payload: AbovePriceFeedArgs = serde_json::from_str(&msg.to_string()).unwrap();
+        log!("{}", msg.to_string());
 
         // let aggregator_read_promise =
-        //     ext_feed_parser::ext(FEED_PARSER_ACCOUNT_ID.to_string().try_into().unwrap())
-        //         .with_static_gas(GAS_AGGREGATOR_READ)
-        //         .aggregator_read(payload);
+        ext_feed_parser::ext(FEED_PARSER_ACCOUNT_ID.to_string().try_into().unwrap())
+            .with_static_gas(GAS_AGGREGATOR_READ)
+            .aggregator_read(msg.to_string())
     }
 
     #[private]

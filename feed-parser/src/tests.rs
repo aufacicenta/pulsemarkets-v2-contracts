@@ -6,6 +6,7 @@ mod tests {
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::{serde_json, testing_env, AccountId, PromiseResult};
     use sbv2_near::{AggregatorRound, SwitchboardDecimal};
+    use shared::Price;
 
     const PRICE: Price = 23456.01;
 

@@ -1,4 +1,5 @@
 use near_sdk::{env, near_bindgen};
+use shared::OutcomeId;
 
 use crate::storage::*;
 

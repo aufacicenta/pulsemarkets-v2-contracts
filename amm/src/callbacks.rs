@@ -1,5 +1,6 @@
 use near_sdk::{env, log, near_bindgen, AccountId, PromiseResult};
 use num_format::ToFormattedString;
+use shared::OutcomeId;
 
 use crate::{storage::*, FORMATTED_STRING_LOCALE};
 
