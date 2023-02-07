@@ -16,8 +16,6 @@ pub type WrappedBalance = u128;
 pub struct MarketData {
     pub description: String,
     pub info: String,
-    // If self.price is set, this is a binary yes/no price market — used on self.aggregator_read
-    pub price: Option<Price>,
     pub category: Option<String>,
     pub options: Vec<String>,
     // Datetime nanos: the market is open
@@ -38,6 +36,9 @@ pub struct Market {
     pub management: Management,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
+
+    // If self.price is set, this is a binary yes/no price market — used on self.aggregator_read
+    pub price: Option<Pricing>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -100,10 +101,11 @@ pub struct Management {
     pub market_creator_account_id: AccountId,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
-pub struct PriceHistory {
-    pub timestamp: u64,
-    pub price: WrappedBalance,
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
+pub struct Pricing {
+    pub value: Price,
+    pub base_currency_symbol: String,
+    pub target_currency_symbol: String,
 }
 
 #[derive(BorshStorageKey, BorshSerialize)]

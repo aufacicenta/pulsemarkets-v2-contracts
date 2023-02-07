@@ -42,6 +42,7 @@ impl Market {
         management: Management,
         collateral_token: CollateralToken,
         fees: Fees,
+        price: Option<Pricing>,
     ) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
@@ -51,18 +52,14 @@ impl Market {
             env::panic_str("ERR_NEW_INSUFFICIENT_MARKET_OPTIONS");
         }
 
-        // add 3 days after ends_at
-        let resolution_window = market.ends_at + 259_200 * 1_000_000_000;
-
         // yes/no price markets have this value set upon creation
-        let price = if let Some(price) = market.price {
-            Some(price)
-        } else {
-            None
-        };
+        let price_market = if let Some(p) = price { Some(p) } else { None };
+
+        let resolution_window = resolution.window;
+        let claiming_window = Some(resolution_window + 2592000 * 1_000_000_000);
 
         Self {
-            market: MarketData { price, ..market },
+            market: MarketData { ..market },
             collateral_token: CollateralToken {
                 balance: 0,
                 fee_balance: 0,
@@ -70,10 +67,7 @@ impl Market {
                 ..collateral_token
             },
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
-            resolution: Resolution {
-                window: resolution_window,
-                ..resolution
-            },
+            resolution,
             management: Management {
                 staking_token_account_id: Some(AccountId::new_unchecked(
                     STAKING_TOKEN_ACCOUNT_ID.to_string(),
@@ -84,9 +78,10 @@ impl Market {
                 staking_fees: Some(LookupMap::new(StorageKeys::StakingFees)),
                 market_creator_fees: Some(LookupMap::new(StorageKeys::MarketCreatorFees)),
                 // @TODO set to less time, currently 30 days after resolution window
-                claiming_window: Some(resolution_window + 2592000 * 1_000_000_000),
+                claiming_window,
                 ..fees
             },
+            price: price_market,
         }
     }
 
@@ -168,7 +163,7 @@ impl Market {
     #[payable]
     pub fn sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
         // @TODO if there are participants only in 1 outcome, allow to claim funds after resolution, otherwise funds will be locked
-        if self.is_resolution_window_expired() && !self.is_resolved() {
+        if self.is_expired_unresolved() {
             return self.internal_sell(outcome_id, amount);
         }
 
@@ -227,7 +222,7 @@ impl Market {
                 "ix": ix,
                 "market_options": self.get_market_data().options,
                 "market_outcome_ids": self.get_outcome_ids(),
-                "price": self.get_market_data().price,
+                "price": self.get_pricing_data().value,
             }
         });
 

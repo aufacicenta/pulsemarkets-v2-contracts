@@ -11,6 +11,13 @@ impl Market {
         self.market.clone()
     }
 
+    pub fn get_pricing_data(&self) -> Pricing {
+        match &self.price {
+            Some(price) => price.clone(),
+            None => env::panic_str("ERR_GET_PRICING_DATA"),
+        }
+    }
+
     pub fn get_fee_ratio(&self) -> WrappedBalance {
         self.fees.fee_ratio
     }
@@ -93,6 +100,10 @@ impl Market {
         self.get_block_timestamp() > self.resolution.window
     }
 
+    pub fn is_expired_unresolved(&self) -> bool {
+        self.is_resolution_window_expired() && !self.is_resolved()
+    }
+
     pub fn balance_of(&self, outcome_id: OutcomeId, account_id: AccountId) -> WrappedBalance {
         self.get_outcome_token(outcome_id).get_balance(&account_id)
     }
@@ -115,7 +126,7 @@ impl Market {
         let mut amount_payable =
             math::complex_mul_u128(self.get_precision_decimals(), amount, weight);
 
-        if self.is_resolved() {
+        if self.is_resolved() || (self.is_expired_unresolved()) {
             let outcome_token = self.get_outcome_token(outcome_id);
 
             if outcome_token.total_supply() <= 0 {

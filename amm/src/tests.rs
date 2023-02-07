@@ -100,7 +100,20 @@ mod tests {
             fee_ratio: LP_FEE,
         };
 
-        let contract = Market::new(market, resolution, management, collateral_token, fees);
+        let price = Pricing {
+            value: 20000.0,
+            base_currency_symbol: "BTC".to_string(),
+            target_currency_symbol: "USD".to_string(),
+        };
+
+        let contract = Market::new(
+            market,
+            resolution,
+            management,
+            collateral_token,
+            fees,
+            Some(price),
+        );
 
         contract
     }
@@ -172,7 +185,6 @@ mod tests {
         MarketData {
             description,
             info: "".to_string(),
-            price: None,
             category: None,
             options: (0..options).map(|s| s.to_string()).collect(),
             starts_at,
