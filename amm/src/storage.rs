@@ -81,7 +81,7 @@ pub struct Fees {
     pub fee_ratio: WrappedBalance,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 pub struct Resolution {
     // Time to free up the market
     pub window: Timestamp,

@@ -18,6 +18,10 @@ impl Market {
         }
     }
 
+    pub fn get_resolution_data(&self) -> Resolution {
+        self.resolution.clone()
+    }
+
     pub fn get_fee_ratio(&self) -> WrappedBalance {
         self.fees.fee_ratio
     }
@@ -126,7 +130,7 @@ impl Market {
         let mut amount_payable =
             math::complex_mul_u128(self.get_precision_decimals(), amount, weight);
 
-        if self.is_resolved() || (self.is_expired_unresolved()) {
+        if self.is_resolved() || self.is_expired_unresolved() {
             let outcome_token = self.get_outcome_token(outcome_id);
 
             if outcome_token.total_supply() <= 0 {
