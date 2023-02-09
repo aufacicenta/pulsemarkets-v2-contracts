@@ -2,8 +2,22 @@ use crate::math;
 use near_sdk::{env, log, near_bindgen, AccountId};
 use num_format::ToFormattedString;
 use shared::OutcomeId;
+use substring::Substring;
 
 use crate::{storage::*, FORMATTED_STRING_LOCALE};
+
+trait Extract {
+    fn extract_nanoseconds(&self) -> Timestamp;
+}
+
+impl Extract for Timestamp {
+    fn extract_nanoseconds(&self) -> Timestamp {
+        let timestamp = self.to_string();
+        let seconds = timestamp.substring(0, 13);
+
+        seconds.parse::<Timestamp>().unwrap()
+    }
+}
 
 #[near_bindgen]
 impl Market {
@@ -89,7 +103,7 @@ impl Market {
     pub fn is_open(&self) -> bool {
         let limit = self.get_buy_sell_timestamp();
 
-        self.get_block_timestamp() <= limit
+        self.get_block_timestamp().extract_nanoseconds() <= limit.extract_nanoseconds()
     }
 
     pub fn is_closed(&self) -> bool {
@@ -97,11 +111,12 @@ impl Market {
     }
 
     pub fn is_over(&self) -> bool {
-        self.get_block_timestamp() > self.market.ends_at
+        self.get_block_timestamp().extract_nanoseconds() > self.market.ends_at.extract_nanoseconds()
     }
 
     pub fn is_resolution_window_expired(&self) -> bool {
-        self.get_block_timestamp() > self.resolution.window
+        self.get_block_timestamp().extract_nanoseconds()
+            > self.resolution.window.extract_nanoseconds()
     }
 
     pub fn is_expired_unresolved(&self) -> bool {
