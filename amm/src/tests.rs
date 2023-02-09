@@ -647,6 +647,10 @@ mod tests {
         sell(&mut contract, alice(), alice_balance, yes, &context);
 
         assert_eq!(contract.balance_of(yes, alice()), 0);
+        assert_eq!(
+            contract.get_collateral_token_metadata().balance,
+            contract.get_collateral_token_metadata().fee_balance
+        );
     }
 
     #[test]

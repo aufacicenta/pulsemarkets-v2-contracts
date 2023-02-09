@@ -124,13 +124,32 @@ impl Market {
         amount: WrappedBalance,
         outcome_id: OutcomeId,
     ) -> (WrappedBalance, WrappedBalance) {
-        let balance = self.collateral_token.balance - self.collateral_token.fee_balance;
+        let ct_balance_minus_fees =
+            self.collateral_token.balance - self.collateral_token.fee_balance;
 
-        let mut weight = math::complex_div_u128(self.get_precision_decimals(), amount, balance);
+        if self.is_expired_unresolved() {
+            let outcome_token_balance = self.balance_of(outcome_id, env::signer_account_id());
+
+            if amount > outcome_token_balance {
+                env::panic_str("ERR_GET_AMOUNT_PAYABLE_INVALID_AMOUNT");
+            }
+
+            log!(
+                "get_amount_payable - EXPIRED_UNRESOLVED -- selling: {}, ct_balance: {}, amount_payable: {}",
+                amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                ct_balance_minus_fees.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                amount.to_formatted_string(&FORMATTED_STRING_LOCALE)
+            );
+
+            return (amount, 0);
+        }
+
+        let mut weight =
+            math::complex_div_u128(self.get_precision_decimals(), amount, ct_balance_minus_fees);
         let mut amount_payable =
             math::complex_mul_u128(self.get_precision_decimals(), amount, weight);
 
-        if self.is_resolved() || self.is_expired_unresolved() {
+        if self.is_resolved() {
             let outcome_token = self.get_outcome_token(outcome_id);
 
             if outcome_token.total_supply() <= 0 {
@@ -143,12 +162,16 @@ impl Market {
                 outcome_token.total_supply(),
             );
 
-            amount_payable = math::complex_mul_u128(self.get_precision_decimals(), balance, weight);
+            amount_payable = math::complex_mul_u128(
+                self.get_precision_decimals(),
+                ct_balance_minus_fees,
+                weight,
+            );
 
             log!(
                 "get_amount_payable - RESOLVED -- selling: {}, ct_balance: {}, weight: {}, amount_payable: {}",
                 amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
-                balance.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                ct_balance_minus_fees.to_formatted_string(&FORMATTED_STRING_LOCALE),
                 weight.to_formatted_string(&FORMATTED_STRING_LOCALE),
                 amount_payable.to_formatted_string(&FORMATTED_STRING_LOCALE)
             );
@@ -156,7 +179,7 @@ impl Market {
             log!(
                 "get_amount_payable - UNRESOLVED -- selling: {}, ct_balance: {}, cumulative_weight: {}, amount_payable: {}",
                 amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
-                balance.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                ct_balance_minus_fees.to_formatted_string(&FORMATTED_STRING_LOCALE),
                 weight.to_formatted_string(&FORMATTED_STRING_LOCALE),
                 amount_payable.to_formatted_string(&FORMATTED_STRING_LOCALE)
             );
