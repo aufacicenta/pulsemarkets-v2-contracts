@@ -10,7 +10,7 @@ impl MarketFactory {
         &mut self,
         market_account_id: AccountId,
         collateral_token_account_id: AccountId,
-    ) -> bool {
+    ) -> (AccountId, AccountId) {
         match env::promise_result(0) {
             PromiseResult::Successful(_result) => {
                 let create_outcome_tokens_promise = env::promise_create(
@@ -22,7 +22,7 @@ impl MarketFactory {
                 );
 
                 let storage_deposit_promise = env::promise_create(
-                    collateral_token_account_id,
+                    collateral_token_account_id.clone(),
                     "storage_deposit",
                     json!({ "account_id": market_account_id, "registration_only": true })
                         .to_string()
@@ -47,10 +47,10 @@ impl MarketFactory {
 
                 env::promise_return(callback);
 
-                true
+                (market_account_id, collateral_token_account_id)
             }
             // @TODO return the attached deposit to the user
-            _ => false,
+            _ => env::panic_str("ERR_ON_CREATE_MARKET_CALLBACK"),
         }
     }
 

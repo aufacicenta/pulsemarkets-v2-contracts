@@ -1,10 +1,14 @@
-use near_sdk::{near_bindgen, serde_json, AccountId};
+use near_sdk::{json_types::U128, near_bindgen, serde_json, AccountId, PromiseOrValue};
 
 use crate::*;
 
 pub trait FungibleTokenReceiver {
-    // @returns amount of unused tokens
-    fn ft_on_transfer(&mut self, sender_id: AccountId, amount: String, msg: String) -> String;
+    fn ft_on_transfer(
+        &mut self,
+        sender_id: AccountId,
+        amount: U128,
+        msg: String,
+    ) -> PromiseOrValue<U128>;
 }
 
 #[near_bindgen]
@@ -17,9 +21,14 @@ impl FungibleTokenReceiver for Market {
      * @returns the amount of tokens that were not spent
      */
     #[payable]
-    fn ft_on_transfer(&mut self, sender_id: AccountId, amount: String, msg: String) -> String {
-        let amount: WrappedBalance = amount.parse::<WrappedBalance>().unwrap();
-        assert!(amount > 0.0, "ERR_ZERO_AMOUNT");
+    fn ft_on_transfer(
+        &mut self,
+        sender_id: AccountId,
+        amount: U128,
+        msg: String,
+    ) -> PromiseOrValue<U128> {
+        let amount: WrappedBalance = amount.try_into().unwrap();
+        assert!(amount > 0, "ERR_ZERO_AMOUNT");
 
         let payload: Payload = serde_json::from_str(&msg).expect("ERR_INVALID_PAYLOAD");
 
@@ -28,6 +37,6 @@ impl FungibleTokenReceiver for Market {
         };
 
         // All the collateral was used, so we should issue no refund on ft_resolve_transfer
-        return "0".to_string();
+        return PromiseOrValue::Value(U128::from(0));
     }
 }

@@ -1,11 +1,31 @@
-use near_sdk::collections::LookupMap;
-use near_sdk::json_types::Base64VecU8;
-use near_sdk::serde_json::json;
-use near_sdk::{env, log, near_bindgen, AccountId, Promise};
+use near_sdk::{
+    collections::LookupMap, env, ext_contract, json_types::U128, log, near_bindgen, serde_json,
+    AccountId, Promise,
+};
+use num_format::ToFormattedString;
+use shared::OutcomeId;
 use std::default::Default;
+
+use near_contract_standards::fungible_token::core::ext_ft_core;
 
 use crate::consts::*;
 use crate::storage::*;
+
+#[ext_contract(ext_self)]
+trait Callbacks {
+    fn on_ft_transfer_callback(
+        &mut self,
+        amount: WrappedBalance,
+        payee: AccountId,
+        outcome_id: OutcomeId,
+        amount_payable: WrappedBalance,
+    ) -> String;
+}
+
+#[ext_contract(ext_feed_parser)]
+trait SwitchboardFeedParser {
+    fn aggregator_read(&self, msg: String) -> Promise;
+}
 
 impl Default for Market {
     fn default() -> Self {
@@ -18,126 +38,51 @@ impl Market {
     #[init]
     pub fn new(
         market: MarketData,
-        dao_account_id: AccountId,
-        collateral_token_account_id: AccountId,
-        market_creator_account_id: AccountId,
-        fee_ratio: WrappedBalance,
-        // @TODO collateral_token_decimals should be set by a cross-contract call to ft_metadata, otherwise the system can be tamed
-        collateral_token_decimals: u8,
+        resolution: Resolution,
+        management: Management,
+        collateral_token: CollateralToken,
+        fees: Fees,
+        price: Option<Pricing>,
     ) -> Self {
         if env::state_exists() {
             env::panic_str("ERR_ALREADY_INITIALIZED");
         }
 
-        // @TODO assert at least 2 options
+        if market.options.len() < 2 {
+            env::panic_str("ERR_NEW_INSUFFICIENT_MARKET_OPTIONS");
+        }
+
+        // yes/no price markets have this value set upon creation
+        let price_market = if let Some(p) = price { Some(p) } else { None };
+
+        let resolution_window = resolution.window;
+        let claiming_window = Some(resolution_window + 2592000 * 1_000_000_000);
 
         Self {
-            market,
+            market: MarketData { ..market },
             collateral_token: CollateralToken {
-                id: collateral_token_account_id,
-                balance: 0.0,
-                fee_balance: 0.0,
-                decimals: collateral_token_decimals,
+                balance: 0,
+                fee_balance: 0,
+                // @TODO collateral_token_decimals should be set by a cross-contract call to ft_metadata, otherwise the system can be tamed
+                ..collateral_token
             },
-            dao_account_id,
-            // @TODO change to testnet address on release
-            staking_token_account_id: AccountId::new_unchecked("pulse.fakes.testnet".to_string()),
-            market_creator_account_id,
-            market_publisher_account_id: None,
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
-            // @TODO move fee_ratio to Fees
-            fee_ratio,
-            resolution_window: None,
-            published_at: None,
-            resolved_at: None,
-            fees: Fees {
-                staking_fees: LookupMap::new(StorageKeys::StakingFees),
-                market_creator_fees: LookupMap::new(StorageKeys::MarketCreatorFees),
-                market_publisher_fees: LookupMap::new(StorageKeys::MarketPublisherFees),
-                claiming_window: None,
+            resolution,
+            management: Management {
+                staking_token_account_id: Some(AccountId::new_unchecked(
+                    STAKING_TOKEN_ACCOUNT_ID.to_string(),
+                )),
+                ..management
             },
+            fees: Fees {
+                staking_fees: Some(LookupMap::new(StorageKeys::StakingFees)),
+                market_creator_fees: Some(LookupMap::new(StorageKeys::MarketCreatorFees)),
+                // @TODO set to less time, currently 30 days after resolution window
+                claiming_window,
+                ..fees
+            },
+            price: price_market,
         }
-    }
-
-    pub fn create_outcome_tokens(&mut self) -> usize {
-        match self.outcome_tokens.get(&0) {
-            Some(_token) => env::panic_str("ERR_CREATE_OUTCOME_TOKENS_OUTCOMES_EXIST"),
-            None => {
-                for outcome_id in 0..self.market.options.len() {
-                    self.create_outcome_token(outcome_id as u64);
-                }
-
-                self.assert_price_constant();
-
-                self.market.options.len()
-            }
-        }
-    }
-
-    /**
-     * Creates market options Sputnik2 DAO proposals
-     * Creates an OT per each proposal
-     *
-     * The units of each OT is 0 until each is minted on the presale
-     * The initial price of each unit is set to: 1 / self.market.options.len()
-     *
-     * @notice called by the MarketFactory contract only and only once
-     * @notice publishes the market, does not mean it is open
-     * @notice a market is open during the start_date and end_date period
-     * @returns
-     */
-    #[payable]
-    pub fn publish(&mut self) -> Promise {
-        self.assert_is_not_published();
-
-        if !self.is_over() {
-            env::panic_str("ERR_PUBLISH_MARKET_IS_NOT_OVER");
-        }
-
-        let mut outcome_id = 0;
-        let options = &self.market.options.clone();
-        let mut promise: Promise = Promise::new(self.dao_account_id.clone());
-
-        for outcome in options {
-            let args = Base64VecU8(json!({ "outcome_id": outcome_id }).to_string().into_bytes());
-
-            promise = promise.function_call(
-                "add_proposal".to_string(),
-                json!({
-                    "proposal": {
-                        "description": format!("{}\nOutcome: {}",
-                            self.market.description,
-                            outcome),
-                        "kind": {
-                            "FunctionCall": {
-                                "receiver_id": env::current_account_id(),
-                                "actions": [{
-                                    "args": args,
-                                    "deposit": "0", // @TODO
-                                    "gas": "150000000000000", // @TODO
-                                    "method_name": "resolve",
-                                }]
-                            }
-                        }
-                    }
-                })
-                .to_string()
-                .into_bytes(),
-                BALANCE_PROPOSAL_BOND,
-                GAS_CREATE_DAO_PROPOSAL,
-            );
-
-            outcome_id += 1;
-        }
-
-        let callback = Promise::new(env::current_account_id()).function_call(
-            "on_create_proposals_callback".to_string(),
-            json!({}).to_string().into_bytes(),
-            0,
-            GAS_CREATE_DAO_PROPOSAL_CALLBACK,
-        );
-
-        promise.then(callback)
     }
 
     /**
@@ -171,30 +116,25 @@ impl Market {
 
         let mut outcome_token = self.get_outcome_token(payload.outcome_id);
 
-        let (price, fee, exchange_rate, balance_boost, amount_mintable) =
-            self.get_amount_mintable(amount, payload.outcome_id);
+        let (amount_mintable, fee) = self.get_amount_mintable(amount);
 
-        log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, price: {}, exchange_rate: {}, balance_boost: {}, amount_mintable: {}",
-            amount,
-            self.get_fee_ratio(),
-            fee,
+        log!("BUY amount: {}, fee_ratio: {}, fee_result: {}, outcome_id: {}, account_id: {}, supply: {}, amount_mintable: {}, fee_balance: {}",
+            amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
+            self.fees.fee_ratio.to_formatted_string(&FORMATTED_STRING_LOCALE),
+            fee.to_formatted_string(&FORMATTED_STRING_LOCALE),
             outcome_token.outcome_id,
             sender_id,
-            outcome_token.total_supply(),
-            price,
-            exchange_rate,
-            balance_boost,
-            amount_mintable,
+            outcome_token.total_supply().to_formatted_string(&FORMATTED_STRING_LOCALE),
+            amount_mintable.to_formatted_string(&FORMATTED_STRING_LOCALE),
+            self.collateral_token.fee_balance.to_formatted_string(&FORMATTED_STRING_LOCALE),
         );
 
         outcome_token.mint(&sender_id, amount_mintable);
-        self.update_ct_balance(amount);
+        self.update_ct_balance(self.collateral_token.balance + amount);
         self.update_ct_fee_balance(fee);
 
         self.outcome_tokens
             .insert(&payload.outcome_id, &outcome_token);
-
-        self.update_prices(payload.outcome_id, SetPriceOptions::Increase);
 
         return amount_mintable;
     }
@@ -223,11 +163,10 @@ impl Market {
     #[payable]
     pub fn sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
         // @TODO if there are participants only in 1 outcome, allow to claim funds after resolution, otherwise funds will be locked
-        if self.is_resolution_window_expired() && !self.is_resolved() {
+        if self.is_expired_unresolved() {
             return self.internal_sell(outcome_id, amount);
         }
 
-        self.assert_is_published();
         self.assert_is_not_under_resolution();
         self.assert_is_resolved();
 
@@ -247,57 +186,62 @@ impl Market {
      * @returns
      */
     #[payable]
-    pub fn resolve(&mut self, outcome_id: OutcomeId) {
-        self.assert_only_owner();
-        self.assert_is_published();
+    pub fn resolve(&mut self, outcome_id: OutcomeId, ix: Ix) {
+        self.assert_only_owner(ix);
         self.assert_is_not_resolved();
         self.assert_is_valid_outcome(outcome_id);
 
-        // @TODO what happens if the resolution window expires?
-        // Redeem is no longer possible? — Redeem is possible, but prices stay at their latest value
         self.assert_is_resolution_window_open();
 
         self.burn_the_losers(outcome_id);
 
-        self.resolved_at = Some(self.get_block_timestamp());
+        self.resolution.resolved_at = Some(self.get_block_timestamp());
     }
 
-    #[private]
-    pub fn update_prices(&mut self, outcome_id: OutcomeId, set_price_option: SetPriceOptions) {
-        let price_ratio = self.get_price_ratio(outcome_id);
-
-        for id in 0..self.market.options.len() {
-            let mut outcome_token = self.get_outcome_token(id as OutcomeId);
-
-            // @TODO self.price_ratio may be updated so that it doesn't reach 1
-            if outcome_token.outcome_id == outcome_id {
-                match set_price_option {
-                    SetPriceOptions::Increase => {
-                        outcome_token.increase_price(price_ratio);
-                    }
-                    SetPriceOptions::Decrease => {
-                        outcome_token.decrease_price(price_ratio);
-                    }
+    pub fn create_outcome_tokens(&mut self) -> usize {
+        match self.outcome_tokens.get(&0) {
+            Some(_token) => env::panic_str("ERR_CREATE_OUTCOME_TOKENS_OUTCOMES_EXIST"),
+            None => {
+                for outcome_id in 0..self.market.options.len() {
+                    self.create_outcome_token(outcome_id as u64);
                 }
-            } else {
-                match set_price_option {
-                    SetPriceOptions::Increase => {
-                        outcome_token.decrease_price(price_ratio);
-                    }
-                    SetPriceOptions::Decrease => {
-                        outcome_token.increase_price(price_ratio);
-                    }
-                }
+
+                self.market.options.len()
             }
-
-            self.outcome_tokens
-                .insert(&(id as OutcomeId), &outcome_token);
         }
+    }
+
+    /**
+     * attempt to call the feed-parser contract that will call "self.resolve"
+     */
+    pub fn aggregator_read(&mut self) -> Promise {
+        let ix = self.resolution.ix.clone();
+
+        let msg = serde_json::json!({
+            "AggregatorReadArgs": {
+                "ix": ix,
+                "market_options": self.get_market_data().options,
+                "market_outcome_ids": self.get_outcome_ids(),
+                "price": self.get_pricing_data().value,
+            }
+        });
+
+        log!("{}", msg.to_string());
+
+        // let aggregator_read_promise =
+        ext_feed_parser::ext(FEED_PARSER_ACCOUNT_ID.to_string().try_into().unwrap())
+            .with_static_gas(GAS_AGGREGATOR_READ)
+            .aggregator_read(msg.to_string())
     }
 
     #[private]
     pub fn update_ct_balance(&mut self, amount: WrappedBalance) -> WrappedBalance {
-        self.collateral_token.balance += amount;
+        log!(
+            "update_ct_balance: {}",
+            amount.to_formatted_string(&FORMATTED_STRING_LOCALE)
+        );
+
+        self.collateral_token.balance = amount;
         self.collateral_token.balance
     }
 
@@ -321,13 +265,8 @@ impl Market {
     }
 
     fn create_outcome_token(&mut self, outcome_id: OutcomeId) {
-        let price = self.get_initial_outcome_token_price();
-        let outcome_token = OutcomeToken::new(outcome_id, 0.0, price);
+        let outcome_token = OutcomeToken::new(outcome_id, 0);
         self.outcome_tokens.insert(&outcome_id, &outcome_token);
-    }
-
-    fn get_initial_outcome_token_price(&self) -> Price {
-        1 as Price / self.market.options.len() as Price
     }
 
     fn internal_sell(&mut self, outcome_id: OutcomeId, amount: WrappedBalance) -> WrappedBalance {
@@ -335,54 +274,38 @@ impl Market {
             env::panic_str("ERR_SELL_AMOUNT_GREATER_THAN_BALANCE");
         }
 
-        let outcome_token = self.get_outcome_token(outcome_id);
+        let (amount_payable, weight) = self.get_amount_payable(amount, outcome_id);
 
-        let payee = env::signer_account_id();
-        let (weight, amount_payable) =
-            self.get_amount_payable(amount, outcome_id, self.collateral_token.balance);
-
-        if amount_payable.is_infinite() || amount_payable.is_nan() || amount_payable <= 0.0 {
+        if amount_payable <= 0 {
             env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");
         }
 
+        let outcome_token = self.get_outcome_token(outcome_id);
+
+        let payee = env::signer_account_id();
+
         log!(
             "SELL amount: {}, outcome_id: {}, account_id: {}, ot_balance: {}, supply: {}, is_resolved: {}, ct_balance: {},  weight: {}, amount_payable: {}",
-            amount,
+            amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
             outcome_id,
             payee,
-            outcome_token.get_balance(&payee),
-            outcome_token.total_supply(),
+            outcome_token.get_balance(&payee).to_formatted_string(&FORMATTED_STRING_LOCALE),
+            outcome_token.total_supply().to_formatted_string(&FORMATTED_STRING_LOCALE),
             self.is_resolved(),
-            self.collateral_token.balance,
-            weight,
-            amount_payable,
+            self.collateral_token.balance.to_formatted_string(&FORMATTED_STRING_LOCALE),
+            weight.to_formatted_string(&FORMATTED_STRING_LOCALE),
+            amount_payable.to_formatted_string(&FORMATTED_STRING_LOCALE),
         );
 
-        let ft_transfer_promise = Promise::new(self.collateral_token.id.clone()).function_call(
-            "ft_transfer".to_string(),
-            json!({
-                "amount": amount_payable.to_string(),
-                "receiver_id": payee
-            })
-            .to_string()
-            .into_bytes(),
-            FT_TRANSFER_BOND,
-            GAS_FT_TRANSFER,
-        );
+        let ft_transfer_promise = ext_ft_core::ext(self.collateral_token.id.clone())
+            .with_attached_deposit(FT_TRANSFER_BOND)
+            .with_static_gas(GAS_FT_TRANSFER)
+            .ft_transfer(payee.clone(), U128::from(amount_payable), None);
 
-        let ft_transfer_callback_promise = Promise::new(env::current_account_id()).function_call(
-            "on_ft_transfer_callback".to_string(),
-            json!({
-                "amount": amount,
-                "payee": payee,
-                "outcome_id": outcome_id,
-                "amount_payable": amount_payable
-            })
-            .to_string()
-            .into_bytes(),
-            0,
-            GAS_FT_TRANSFER_CALLBACK,
-        );
+        let ft_transfer_callback_promise = ext_self::ext(env::current_account_id())
+            .with_attached_deposit(0)
+            .with_static_gas(GAS_FT_TRANSFER_CALLBACK)
+            .on_ft_transfer_callback(amount, payee, outcome_id, amount_payable);
 
         ft_transfer_promise.then(ft_transfer_callback_promise);
 

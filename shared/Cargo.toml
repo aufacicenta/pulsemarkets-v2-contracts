@@ -1,15 +1,18 @@
 [package]
-name = "market"
+name = "shared"
 version = "0.1.0"
 edition = "2021"
-authors = ["netpoe <gus@aufacicenta.com>"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-near-sdk = "4.0.0-pre.4"
-chrono = "0.4.0"
+near-sdk = "4.1.1"
+sbv2-near = { version = "0.1.0", features = ["testnet"] }
+serde = "1.0.152"
+
+[dev-dependencies]
+chrono = "0.4.23"
 
 [profile.release]
 codegen-units = 1

@@ -5,14 +5,10 @@ use near_sdk::{
     serde::{Deserialize, Serialize},
     AccountId, BorshStorageKey,
 };
+use shared::{OutcomeId, Price};
 
-pub type OutcomeId = u64;
 pub type Timestamp = i64;
-pub type LiquidityProvider = AccountId;
-pub type Price = f32;
-pub type PriceRatio = f32;
-pub type WrappedBalance = f32;
-pub type Weight = f32;
+pub type WrappedBalance = u128;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
 #[cfg_attr(not(target_arch = "wasm32"), derive(Debug, PartialEq))]
@@ -35,23 +31,14 @@ pub struct MarketData {
 pub struct Market {
     pub market: MarketData,
     pub collateral_token: CollateralToken,
-    pub dao_account_id: AccountId,
-    pub staking_token_account_id: AccountId,
-    pub market_creator_account_id: AccountId,
-    pub market_publisher_account_id: Option<AccountId>,
+    pub fees: Fees,
+    pub resolution: Resolution,
+    pub management: Management,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
-    // Decimal fee to charge upon a bet
-    pub fee_ratio: WrappedBalance,
-    // When the market is published
-    pub published_at: Option<Timestamp>,
-    // When the market is published
-    pub resolved_at: Option<Timestamp>,
-    // Time to free up the market
-    pub resolution_window: Option<Timestamp>,
-    // Time to free up the market
-    // Maps to check if fee has been paid for AccountId
-    pub fees: Fees,
+
+    // If self.price is set, this is a binary yes/no price market — used on self.aggregator_read
+    pub price: Option<Pricing>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -65,21 +52,17 @@ pub struct OutcomeToken {
     // map `AccountId` to corresponding `Balance` in the market
     #[serde(skip_serializing)]
     pub balances: UnorderedMap<AccountId, WrappedBalance>,
-    // vec! of price history by block_timestamp
-    pub price_history: Vec<PriceHistory>,
     // keep the number of accounts with positive balance. Use for calculating the price_ratio
     pub accounts_length: u64,
     // total supply of this outcome_token
     pub total_supply: WrappedBalance,
     // the outcome this token represents, used for storage pointers
     pub outcome_id: OutcomeId,
-    // a value between 0 & 1
-    pub price: WrappedBalance,
     // can mint more tokens
     pub is_active: bool,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Deserialize, Serialize, Clone)]
 pub struct CollateralToken {
     pub id: AccountId,
     pub balance: WrappedBalance,
@@ -87,18 +70,42 @@ pub struct CollateralToken {
     pub fee_balance: WrappedBalance,
 }
 
-#[derive(BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Deserialize, Serialize)]
 pub struct Fees {
-    pub staking_fees: LookupMap<AccountId, String>,
-    pub market_creator_fees: LookupMap<AccountId, String>,
-    pub market_publisher_fees: LookupMap<AccountId, String>,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub staking_fees: Option<LookupMap<AccountId, String>>,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub market_creator_fees: Option<LookupMap<AccountId, String>>,
     pub claiming_window: Option<Timestamp>,
+    // Decimal fee to charge upon a bet
+    pub fee_ratio: WrappedBalance,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Clone)]
-pub struct PriceHistory {
-    pub timestamp: u64,
-    pub price: WrappedBalance,
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
+pub struct Resolution {
+    // Time to free up the market
+    pub window: Timestamp,
+    // When the market is resolved, set only by fn resolve
+    pub resolved_at: Option<Timestamp>,
+    // Unit8ByteArray with the immutable Aggregator address, this is the "is_owner" condition to resolve the market
+    pub ix: Ix,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+pub struct Management {
+    // Gets sent fees when claiming window is open
+    pub dao_account_id: AccountId,
+    // Sends fees to stakers (eg. $PULSE NEP141)
+    pub staking_token_account_id: Option<AccountId>,
+    // Gets fees for creating a market
+    pub market_creator_account_id: AccountId,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
+pub struct Pricing {
+    pub value: Price,
+    pub base_currency_symbol: String,
+    pub target_currency_symbol: String,
 }
 
 #[derive(BorshStorageKey, BorshSerialize)]
@@ -106,7 +113,6 @@ pub enum StorageKeys {
     OutcomeTokens,
     StakingFees,
     MarketCreatorFees,
-    MarketPublisherFees,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -118,4 +124,9 @@ pub struct BuyArgs {
 #[derive(Serialize, Deserialize)]
 pub enum Payload {
     BuyArgs(BuyArgs),
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone)]
+pub struct Ix {
+    pub address: [u8; 32],
 }

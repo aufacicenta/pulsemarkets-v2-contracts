@@ -1,6 +1,9 @@
+use crate::math;
 use near_sdk::{env, log, near_bindgen, AccountId};
+use num_format::ToFormattedString;
+use shared::OutcomeId;
 
-use crate::storage::*;
+use crate::{storage::*, FORMATTED_STRING_LOCALE};
 
 #[near_bindgen]
 impl Market {
@@ -8,27 +11,19 @@ impl Market {
         self.market.clone()
     }
 
+    pub fn get_pricing_data(&self) -> Pricing {
+        match &self.price {
+            Some(price) => price.clone(),
+            None => env::panic_str("ERR_GET_PRICING_DATA"),
+        }
+    }
+
+    pub fn get_resolution_data(&self) -> Resolution {
+        self.resolution.clone()
+    }
+
     pub fn get_fee_ratio(&self) -> WrappedBalance {
-        self.fee_ratio
-    }
-
-    pub fn get_price_ratio(&self, outcome_id: OutcomeId) -> PriceRatio {
-        let outcome_token = self.get_outcome_token(outcome_id);
-        let accounts_length = outcome_token.get_accounts_length() + 1;
-
-        let price_ratio = (1.0 - (1.0 / accounts_length as PriceRatio)) / 100.0;
-
-        log!(
-            "GET_PRICE_RATIO accounts_length: {}, price_ratio: {}\n",
-            accounts_length - 1,
-            price_ratio
-        );
-
-        price_ratio
-    }
-
-    pub fn get_balance_boost_ratio(&self) -> WrappedBalance {
-        1.0
+        self.fees.fee_ratio
     }
 
     pub fn get_outcome_token(&self, outcome_id: OutcomeId) -> OutcomeToken {
@@ -36,6 +31,15 @@ impl Market {
             Some(token) => token,
             None => env::panic_str("ERR_INVALID_OUTCOME_ID"),
         }
+    }
+
+    pub fn get_outcome_ids(&self) -> Vec<OutcomeId> {
+        self.market
+            .options
+            .iter()
+            .enumerate()
+            .map(|(index, _)| index as OutcomeId)
+            .collect()
     }
 
     pub fn get_block_timestamp(&self) -> Timestamp {
@@ -46,51 +50,27 @@ impl Market {
         self.collateral_token.clone()
     }
 
-    pub fn dao_account_id(&self) -> AccountId {
-        self.dao_account_id.clone()
-    }
-
-    pub fn get_market_publisher_account_id(&self) -> AccountId {
-        match &self.market_publisher_account_id {
-            Some(account_id) => account_id.clone(),
-            None => env::panic_str("ERR_MARKET_PUBLISHER_ACCOUNT_ID_NOT_SET"),
-        }
-    }
-
     pub fn get_market_creator_account_id(&self) -> AccountId {
-        self.market_creator_account_id.clone()
+        self.management.market_creator_account_id.clone()
     }
 
-    pub fn published_at(&self) -> Timestamp {
-        match self.published_at {
-            Some(timestamp) => timestamp,
-            None => env::panic_str("ERR_PUBLISHED_AT"),
-        }
+    pub fn dao_account_id(&self) -> AccountId {
+        self.management.dao_account_id.clone()
     }
 
     pub fn resolution_window(&self) -> Timestamp {
-        match self.resolution_window {
-            Some(timestamp) => timestamp,
-            None => env::panic_str("ERR_RESOLUTION_WINDOW_NOT_SET"),
-        }
+        self.resolution.window
     }
 
     pub fn resolved_at(&self) -> Timestamp {
-        match self.resolved_at {
+        match self.resolution.resolved_at {
             Some(timestamp) => timestamp,
             None => env::panic_str("ERR_RESOLVED_AT"),
         }
     }
 
-    pub fn is_published(&self) -> bool {
-        match self.published_at {
-            Some(_) => true,
-            None => false,
-        }
-    }
-
     pub fn is_resolved(&self) -> bool {
-        match self.resolved_at {
+        match self.resolution.resolved_at {
             Some(_) => true,
             None => false,
         }
@@ -120,75 +100,109 @@ impl Market {
         self.get_block_timestamp() > self.market.ends_at
     }
 
-    pub fn has_begun(&self) -> bool {
-        self.get_block_timestamp() > self.market.starts_at
+    pub fn is_resolution_window_expired(&self) -> bool {
+        self.get_block_timestamp() > self.resolution.window
     }
 
-    pub fn is_resolution_window_expired(&self) -> bool {
-        match self.resolution_window {
-            Some(timestamp) => self.get_block_timestamp() > timestamp,
-            None => false,
-        }
+    pub fn is_expired_unresolved(&self) -> bool {
+        self.is_resolution_window_expired() && !self.is_resolved()
     }
 
     pub fn balance_of(&self, outcome_id: OutcomeId, account_id: AccountId) -> WrappedBalance {
         self.get_outcome_token(outcome_id).get_balance(&account_id)
     }
 
-    pub fn get_cumulative_weight(&self, amount: WrappedBalance) -> WrappedBalance {
-        let mut supply = 0.0;
+    pub fn get_amount_mintable(&self, amount: WrappedBalance) -> (WrappedBalance, WrappedBalance) {
+        let fee = self.calc_percentage(amount, self.get_fee_ratio());
+        let amount_mintable = amount - fee;
 
-        for id in 0..self.market.options.len() {
-            let outcome_token = self.get_outcome_token(id as OutcomeId);
-            supply += outcome_token.total_supply();
-        }
-
-        if supply == 0.0 {
-            return 1.0;
-        }
-
-        amount / supply
-    }
-
-    pub fn get_amount_mintable(
-        &self,
-        amount: WrappedBalance,
-        outcome_id: OutcomeId,
-    ) -> (
-        Price,
-        WrappedBalance,
-        WrappedBalance,
-        WrappedBalance,
-        WrappedBalance,
-    ) {
-        let outcome_token = self.get_outcome_token(outcome_id);
-
-        let price = outcome_token.get_price();
-        let fee = amount * self.get_fee_ratio();
-        let exchange_rate = (amount - fee) * (1.0 - price);
-        let balance_boost = self.get_balance_boost_ratio();
-        let amount_mintable = exchange_rate * balance_boost;
-
-        (price, fee, exchange_rate, balance_boost, amount_mintable)
+        (amount_mintable, fee)
     }
 
     pub fn get_amount_payable(
         &self,
         amount: WrappedBalance,
         outcome_id: OutcomeId,
-        balance: WrappedBalance,
     ) -> (WrappedBalance, WrappedBalance) {
-        let fees = self.collateral_token.fee_balance;
+        let ct_balance_minus_fees =
+            self.collateral_token.balance - self.collateral_token.fee_balance;
 
-        let mut weight = self.get_cumulative_weight(amount);
-        let mut amount_payable = (balance * weight - fees * weight).floor();
+        if self.is_expired_unresolved() {
+            let outcome_token_balance = self.balance_of(outcome_id, env::signer_account_id());
+
+            if amount > outcome_token_balance {
+                env::panic_str("ERR_GET_AMOUNT_PAYABLE_INVALID_AMOUNT");
+            }
+
+            log!(
+                "get_amount_payable - EXPIRED_UNRESOLVED -- selling: {}, ct_balance: {}, amount_payable: {}",
+                amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                ct_balance_minus_fees.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                amount.to_formatted_string(&FORMATTED_STRING_LOCALE)
+            );
+
+            return (amount, 0);
+        }
+
+        let mut weight =
+            math::complex_div_u128(self.get_precision_decimals(), amount, ct_balance_minus_fees);
+        let mut amount_payable =
+            math::complex_mul_u128(self.get_precision_decimals(), amount, weight);
 
         if self.is_resolved() {
             let outcome_token = self.get_outcome_token(outcome_id);
-            weight = amount / outcome_token.total_supply();
-            amount_payable = (balance * weight - fees * weight).floor();
+
+            if outcome_token.total_supply() <= 0 {
+                env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");
+            }
+
+            weight = math::complex_div_u128(
+                self.get_precision_decimals(),
+                amount,
+                outcome_token.total_supply(),
+            );
+
+            amount_payable = math::complex_mul_u128(
+                self.get_precision_decimals(),
+                ct_balance_minus_fees,
+                weight,
+            );
+
+            log!(
+                "get_amount_payable - RESOLVED -- selling: {}, ct_balance: {}, weight: {}, amount_payable: {}",
+                amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                ct_balance_minus_fees.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                weight.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                amount_payable.to_formatted_string(&FORMATTED_STRING_LOCALE)
+            );
+        } else {
+            log!(
+                "get_amount_payable - UNRESOLVED -- selling: {}, ct_balance: {}, cumulative_weight: {}, amount_payable: {}",
+                amount.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                ct_balance_minus_fees.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                weight.to_formatted_string(&FORMATTED_STRING_LOCALE),
+                amount_payable.to_formatted_string(&FORMATTED_STRING_LOCALE)
+            );
         }
 
-        (weight, amount_payable)
+        (amount_payable, weight)
+    }
+
+    pub fn get_precision_decimals(&self) -> WrappedBalance {
+        let precision = format!(
+            "{:0<p$}",
+            10,
+            p = self.collateral_token.decimals as usize + 1
+        );
+
+        precision.parse().unwrap()
+    }
+
+    pub fn calc_percentage(&self, amount: WrappedBalance, bps: WrappedBalance) -> WrappedBalance {
+        math::complex_div_u128(
+            self.get_precision_decimals(),
+            math::complex_mul_u128(self.get_precision_decimals(), amount, bps),
+            math::complex_mul_u128(1, self.get_precision_decimals(), 100),
+        )
     }
 }
