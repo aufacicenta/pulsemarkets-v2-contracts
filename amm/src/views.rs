@@ -91,7 +91,7 @@ impl Market {
     }
 
     pub fn get_buy_sell_timestamp(&self) -> i64 {
-        let diff = (self.market.ends_at - self.market.starts_at) as f64 * 0.75;
+        let diff = (self.market.ends_at - self.market.starts_at) as f64 * 0.25;
 
         self.market.ends_at - diff as i64
     }
@@ -138,12 +138,13 @@ impl Market {
         &self,
         amount: WrappedBalance,
         outcome_id: OutcomeId,
+        account_id: AccountId,
     ) -> (WrappedBalance, WrappedBalance) {
         let ct_balance_minus_fees =
             self.collateral_token.balance - self.collateral_token.fee_balance;
 
         if self.is_expired_unresolved() {
-            let outcome_token_balance = self.balance_of(outcome_id, env::signer_account_id());
+            let outcome_token_balance = self.balance_of(outcome_id, account_id);
 
             if amount > outcome_token_balance {
                 env::panic_str("ERR_GET_AMOUNT_PAYABLE_INVALID_AMOUNT");
