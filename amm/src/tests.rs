@@ -591,9 +591,10 @@ mod tests {
         let mut contract: Market = setup_contract(market_data, None);
         create_outcome_tokens(&mut contract);
 
+        // 25% left to an hour, 46 mins is already closed
         testing_env!(context
             .block_timestamp(
-                (starts_at + Duration::minutes(20))
+                (starts_at + Duration::minutes(46))
                     .timestamp_nanos()
                     .try_into()
                     .unwrap()

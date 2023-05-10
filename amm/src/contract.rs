@@ -274,7 +274,8 @@ impl Market {
             env::panic_str("ERR_SELL_AMOUNT_GREATER_THAN_BALANCE");
         }
 
-        let (amount_payable, weight) = self.get_amount_payable(amount, outcome_id);
+        let (amount_payable, weight) =
+            self.get_amount_payable(amount, outcome_id, env::signer_account_id());
 
         if amount_payable <= 0 {
             env::panic_str("ERR_CANT_SELL_A_LOSING_OUTCOME");
