@@ -29,14 +29,18 @@ pub struct MarketData {
 #[near_bindgen]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Market {
+    // Market metadata
     pub market: MarketData,
+    // NEP141 token metadata
     pub collateral_token: CollateralToken,
+    // Market fees metadata
     pub fees: Fees,
+    // MArket resolution metadata
     pub resolution: Resolution,
+    // Market management account ids metadata
     pub management: Management,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
-
     // If self.price is set, this is a binary yes/no price market — used on self.aggregator_read
     pub price: Option<Pricing>,
 }
