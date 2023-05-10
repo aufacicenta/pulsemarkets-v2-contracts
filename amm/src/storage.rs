@@ -99,8 +99,6 @@ pub struct Resolution {
 pub struct Management {
     // Gets sent fees when claiming window is open
     pub dao_account_id: AccountId,
-    // Sends fees to stakers (eg. $PULSE NEP141)
-    pub staking_token_account_id: Option<AccountId>,
     // Gets fees for creating a market
     pub market_creator_account_id: AccountId,
 }
