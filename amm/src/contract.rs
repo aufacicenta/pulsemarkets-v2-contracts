@@ -68,7 +68,7 @@ impl Market {
             },
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
             resolution,
-            management: Management { ..management },
+            management,
             fees: Fees {
                 staking_fees: Some(LookupMap::new(StorageKeys::StakingFees)),
                 market_creator_fees: Some(LookupMap::new(StorageKeys::MarketCreatorFees)),
