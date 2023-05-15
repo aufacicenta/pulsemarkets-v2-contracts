@@ -82,7 +82,6 @@ mod tests {
 
         let management = Management {
             dao_account_id: dao_account_id(),
-            staking_token_account_id: None,
             market_creator_account_id: market_creator_account_id(),
         };
 
@@ -736,48 +735,6 @@ mod tests {
 
         let alice_balance = contract.balance_of(yes, alice());
         sell(&mut contract, alice(), alice_balance, yes, &context);
-    }
-
-    #[test]
-    fn on_claim_staking_fees_resolved_callback() {
-        let mut context = setup_context();
-
-        let now = Utc::now();
-        testing_env!(context.block_timestamp(block_timestamp(now)).build());
-        let starts_at = now + Duration::days(5);
-        let ends_at = starts_at + Duration::days(10);
-
-        let market_data: MarketData = create_market_data(
-            "a market description".to_string(),
-            2,
-            date(starts_at),
-            date(ends_at),
-        );
-
-        let mut contract: Market = setup_contract(market_data, None);
-        create_outcome_tokens(&mut contract);
-
-        testing_env!(
-            context.build(),
-            near_sdk::VMConfig::test(),
-            near_sdk::RuntimeFeesConfig::test(),
-            Default::default(),
-            // These 2 amounts will get the weight % of the staking wallet: 50%
-            vec![
-                // ft_balance_of
-                PromiseResult::Successful("5000000".to_string().into_bytes()),
-                // ft_total_supply
-                PromiseResult::Successful("10000000".to_string().into_bytes())
-            ],
-        );
-
-        // This amount represents 85% of the total fee_balance
-        let amount_payable = contract.on_claim_staking_fees_resolved_callback(221_000_000, alice());
-
-        // (221 = 85% of total fees for $PULSE stakers) * (5 = alice.near weight of $PULSE total_supply) = 110.5,
-        // then convert to Collateral Token decimals precision
-        assert_eq!(amount_payable, "110500000");
-        assert_eq!(contract.get_claimed_staking_fees(alice()), "110500000");
     }
 
     #[test]

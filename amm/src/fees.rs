@@ -1,20 +1,14 @@
 use near_contract_standards::fungible_token::core::ext_ft_core;
 use near_sdk::ext_contract;
 use near_sdk::{
-    env, json_types::U128, log, near_bindgen, require, serde_json, AccountId, Promise,
-    PromiseResult,
+    env, json_types::U128, log, near_bindgen, serde_json, AccountId, Promise, PromiseResult,
 };
 
+use crate::consts::*;
 use crate::storage::*;
-use crate::{consts::*, math};
 
 #[ext_contract(ext_self)]
 trait Callbacks {
-    fn on_claim_staking_fees_resolved_callback(
-        &mut self,
-        amount: WrappedBalance,
-        payee: AccountId,
-    ) -> String;
     fn on_claim_market_creator_fees_resolved_callback(&mut self, payee: AccountId) -> String;
     fn on_ft_balance_of_market_callback(&mut self) -> Promise;
     fn on_ft_transfer_to_dao_callback(&mut self);
@@ -22,82 +16,6 @@ trait Callbacks {
 
 #[near_bindgen]
 impl Market {
-    /**
-     * Lets fee payees claim their balance
-     *
-     * @notice only after market is resolved
-     *
-     * @returns WrappedBalance of fee proportion paid
-     */
-    pub fn claim_staking_fees_resolved(&mut self) {
-        self.assert_is_resolved();
-        self.assert_is_claiming_window_open();
-
-        if let Some(staking_fees) = &self.fees.staking_fees {
-            match staking_fees.get(&env::signer_account_id()) {
-                Some(_) => env::panic_str("ERR_CLAIM_STAKING_FEES_RESOLVED_NO_FEES_TO_CLAIM"),
-                None => {
-                    if let Some(staking_token_account_id) =
-                        &self.management.staking_token_account_id
-                    {
-                        let ft_balance_of_promise = env::promise_create(
-                            staking_token_account_id.clone(),
-                            "ft_balance_of",
-                            serde_json::json!({
-                                "account_id": env::signer_account_id(),
-                            })
-                            .to_string()
-                            .as_bytes(),
-                            0,
-                            GAS_FT_BALANCE_OF,
-                        );
-
-                        let ft_total_supply_promise = env::promise_create(
-                            staking_token_account_id.clone(),
-                            "ft_total_supply",
-                            serde_json::json!({}).to_string().as_bytes(),
-                            0,
-                            GAS_FT_TOTAL_SUPPLY,
-                        );
-
-                        let promises =
-                            env::promise_and(&[ft_balance_of_promise, ft_total_supply_promise]);
-
-                        let amount = math::complex_div_u128(
-                            self.get_precision_decimals(),
-                            math::complex_mul_u128(
-                                self.get_precision_decimals(),
-                                self.collateral_token.fee_balance,
-                                15,
-                            ),
-                            100,
-                        );
-
-                        let callback = env::promise_then(
-                            promises,
-                            env::current_account_id(),
-                            "on_claim_staking_fees_resolved_callback",
-                            serde_json::json!({
-                                "amount": amount,
-                                "payee": env::signer_account_id(),
-                            })
-                            .to_string()
-                            .as_bytes(),
-                            0,
-                            GAS_FT_TOTAL_SUPPLY_CALLBACK,
-                        );
-
-                        env::promise_return(callback)
-                    } else {
-                        env::panic_str("ERR_NO_STAKING_TOKEN");
-                    }
-                }
-            };
-        } else {
-            env::panic_str("ERR_CLAIM_STAKING_FEES_RESOLVED_NOT_SET");
-        }
-    }
-
     /**
      * Lets fee payees claim their balance
      *
@@ -165,61 +83,6 @@ impl Market {
             .on_ft_balance_of_market_callback();
 
         ft_balance_of_promise.then(ft_balance_of_callback_promise)
-    }
-
-    #[private]
-    pub fn on_claim_staking_fees_resolved_callback(
-        &mut self,
-        amount: WrappedBalance,
-        payee: AccountId,
-    ) -> String {
-        require!(env::promise_results_count() == 2);
-
-        let ft_balance_of_result = match env::promise_result(0) {
-            PromiseResult::Successful(result) => result,
-            _ => env::panic_str("ERR_ON_FT_BALANCE_OF_CALLBACK_0"),
-        };
-
-        let ft_balance_of: WrappedBalance = serde_json::from_slice(&ft_balance_of_result)
-            .expect("ERR_ON_FT_BALANCE_OF_CALLBACK_RESULT_0");
-
-        let ft_total_supply_result = match env::promise_result(1) {
-            PromiseResult::Successful(result) => result,
-            _ => env::panic_str("ERR_ON_FT_BALANCE_OF_CALLBACK_0"),
-        };
-
-        let ft_total_supply: WrappedBalance = serde_json::from_slice(&ft_total_supply_result)
-            .expect("ERR_ON_FT_BALANCE_OF_CALLBACK_RESULT_1");
-
-        log!(
-            "on_claim_staking_fees_resolved_callback ft_balance_of: {}, ft_total_supply: {}, amount: {}, payee: {}",
-            ft_balance_of,
-            ft_total_supply,
-            amount,
-            payee,
-        );
-
-        let weight = self.calc_percentage(ft_balance_of, ft_total_supply);
-        let amount_payable = math::complex_mul_u128(self.get_precision_decimals(), amount, weight);
-
-        log!(
-            "on_claim_staking_fees_resolved_callback weight: {}, amount_payable: {}",
-            weight,
-            amount_payable
-        );
-
-        ext_ft_core::ext(self.collateral_token.id.clone())
-            .with_attached_deposit(FT_TRANSFER_BOND)
-            .with_static_gas(GAS_FT_TRANSFER)
-            .ft_transfer(payee.clone(), U128::from(amount_payable), None);
-
-        // @TODO callback of a failed transfer
-
-        if let Some(staking_fees) = &mut self.fees.staking_fees {
-            staking_fees.insert(&payee, &amount_payable.to_string());
-        }
-
-        return amount_payable.to_string();
     }
 
     #[private]

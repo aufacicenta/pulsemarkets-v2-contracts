@@ -29,14 +29,18 @@ pub struct MarketData {
 #[near_bindgen]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Market {
+    // Market metadata
     pub market: MarketData,
+    // NEP141 token metadata
     pub collateral_token: CollateralToken,
+    // Market fees metadata
     pub fees: Fees,
+    // MArket resolution metadata
     pub resolution: Resolution,
+    // Market management account ids metadata
     pub management: Management,
     // Keeps track of Outcomes prices and balances
     pub outcome_tokens: LookupMap<OutcomeId, OutcomeToken>,
-
     // If self.price is set, this is a binary yes/no price market — used on self.aggregator_read
     pub price: Option<Pricing>,
 }
@@ -95,8 +99,6 @@ pub struct Resolution {
 pub struct Management {
     // Gets sent fees when claiming window is open
     pub dao_account_id: AccountId,
-    // Sends fees to stakers (eg. $PULSE NEP141)
-    pub staking_token_account_id: Option<AccountId>,
     // Gets fees for creating a market
     pub market_creator_account_id: AccountId,
 }

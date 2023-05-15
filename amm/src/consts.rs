@@ -18,14 +18,6 @@ pub const FT_TRANSFER_BOND: Balance = ONE_YOCTO;
 
 pub const FORMATTED_STRING_LOCALE: Locale = Locale::en;
 
-pub const PULSE_V2_MAINNET: &str = "52a047ee205701895ee06a375492490ec9c597ce.factory.bridge.near";
-#[cfg(not(near_env = "testnet"))]
-pub const STAKING_TOKEN_ACCOUNT_ID: &str = PULSE_V2_MAINNET;
-
-pub const PULSE_V2_TESTNET: &str = "pulse.fakes.testnet";
-#[cfg(near_env = "testnet")]
-pub const STAKING_TOKEN_ACCOUNT_ID: &str = PULSE_V2_TESTNET;
-
 pub const FEED_PARSER_V2_MAINNET: &str = "feed-parser.pulsemarkets.near";
 #[cfg(not(near_env = "testnet"))]
 pub const FEED_PARSER_ACCOUNT_ID: &str = FEED_PARSER_V2_MAINNET;

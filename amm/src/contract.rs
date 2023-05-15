@@ -68,12 +68,7 @@ impl Market {
             },
             outcome_tokens: LookupMap::new(StorageKeys::OutcomeTokens),
             resolution,
-            management: Management {
-                staking_token_account_id: Some(AccountId::new_unchecked(
-                    STAKING_TOKEN_ACCOUNT_ID.to_string(),
-                )),
-                ..management
-            },
+            management,
             fees: Fees {
                 staking_fees: Some(LookupMap::new(StorageKeys::StakingFees)),
                 market_creator_fees: Some(LookupMap::new(StorageKeys::MarketCreatorFees)),
@@ -228,7 +223,6 @@ impl Market {
 
         log!("{}", msg.to_string());
 
-        // let aggregator_read_promise =
         ext_feed_parser::ext(FEED_PARSER_ACCOUNT_ID.to_string().try_into().unwrap())
             .with_static_gas(GAS_AGGREGATOR_READ)
             .aggregator_read(msg.to_string())
