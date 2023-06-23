@@ -1,0 +1,31 @@
+[package]
+name = "promptwars"
+version = "0.1.0"
+edition = "2021"
+authors = ["netpoe <gus@aufacicenta.com>"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "4.1.1"
+near-contract-standards = "4.1.1"
+serde = "1.0.152"
+chrono = "0.4.26"
+num-format = "0.4.4"
+uint = { version = "0.8.5", default-features = false }
+shared = { path = "../shared" }
+substring = "1.4.5"
+
+[dev-dependencies]
+rand = "0.8.5"
+
+[profile.release]
+codegen-units = 1
+# Tell `rustc` to optimize for small code size.
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+# Opt into extra safety checks on arithmetic operations https://stackoverflow.com/a/64136471/249801
+overflow-checks = true
